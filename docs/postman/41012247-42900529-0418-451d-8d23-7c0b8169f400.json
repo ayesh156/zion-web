@@ -1,0 +1,349 @@
+{
+	"info": {
+		"_postman_id": "41012247-42900529-0418-451d-8d23-7c0b8169f400",
+		"name": "Zion Property Care - WebApp API",
+		"description": "API collection for Zion Property Care web application including Firebase authentication endpoints.\n\n## **🚨 IMPORTANT: ADMIN-ONLY ACCESS**\n\nThe system currently **only allows admin users** to log in. Regular users will be denied access with a 403 error: \"Access denied. Only administrators can access the system at this time.\"\n\n## **Getting Started**\n\nTo use these APIs, you need to:\n\n1. Set up your environment variables:\n   - `baseUrl`: Your application base URL (e.g., https://localhost:3000 for development)\n   - `adminSetupSecret`: Your admin setup secret key from environment variables\n\n2. For admin endpoints, ensure you have proper authentication cookies set\n\n## **Authentication**\n\nThe application uses Firebase Authentication with the following flow:\n- Only admin users can successfully authenticate\n- Login returns httpOnly cookies for secure authentication (admin-only)\n- Admin routes are protected by middleware\n- Admin setup requires a secret key for security\n- Non-admin users are rejected at the API level\n\n## **Future Extensibility**\n\nThe system is designed to easily support multiple user types (staff, customers, etc.) when needed. The admin-only restriction can be removed to allow different user roles in the future.\n\n## **Endpoints**\n\n### Auth Endpoints\n- **POST /api/auth/verify** - Verify user authentication status (admin-only)\n- **GET /api/auth/status** - Get current user status (admin-only)\n- **POST /api/auth/logout** - Logout user\n\n### Admin Endpoints\n- **POST /api/admin/setup** - Create admin user (requires admin setup secret)\n\n---",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Verify Auth Status",
+					"id": "auth-verify",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idToken\": \"your_firebase_id_token_here\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"verify"
+							]
+						},
+						"description": "Verify Firebase ID token and set authentication cookies. **ADMIN ONLY** - Non-admin users will receive a 403 error."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Auth Status",
+					"id": "auth-status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"status"
+							]
+						},
+						"description": "Get current user authentication status from cookies. **ADMIN ONLY** - Only returns data for admin users."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"id": "auth-logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout user and clear authentication cookies"
+					},
+					"response": []
+				}
+			],
+			"id": "41012247-491782f5-e9b7-4f7a-8589-886d54e70efc",
+			"description": "Firebase authentication endpoints"
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Setup Admin User",
+					"id": "admin-setup",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "x-admin-setup-key",
+								"value": "{{adminSetupSecret}}",
+								"description": "Admin setup secret key from environment variables"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"work.sathiradm@gmail.com\",\n  \"name\": \"Admin User\",\n  \"password\": \"SecurePassword123!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/setup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"setup"
+							]
+						},
+						"description": "Create a new admin user with email and password. Requires admin setup secret in headers.\n\n⚠️ **IMPORTANT**: This endpoint ONLY creates NEW admin users. If a user with the provided email already exists, it will return a 409 error.\n\nRequired fields:\n- `email`: Admin user email address\n- `password`: Secure password for the new admin user\n- `name`: Display name (optional, defaults to email username)\n\nExample request:\n```json\n{\n  \"email\": \"admin@example.com\",\n  \"name\": \"John Admin\",\n  \"password\": \"SecurePassword123!\"\n}\n```\n\nThis endpoint will:\n1. Create a new Firebase user with the provided credentials\n2. Auto-verify the email address\n3. Set Firebase custom claims for admin role\n4. Create user document in Firestore\n5. Return 409 error if user already exists"
+					},
+					"response": [
+						{
+							"id": "41012247-dd54d34e-e95e-44ea-875f-9b223a5ea183",
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "x-admin-setup-key",
+										"value": "your_admin_setup_secret"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"admin@example.com\",\n  \"name\": \"John Admin\",\n  \"password\": \"SecurePassword123!\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/setup",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"setup"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"responseTime": null,
+							"body": "{\n  \"success\": true,\n  \"message\": \"Admin user created successfully\",\n  \"uid\": \"firebase_user_uid\",\n  \"email\": \"admin@example.com\",\n  \"userDocumentCreated\": true\n}"
+						},
+						{
+							"id": "41012247-93078142-c8f9-4e8e-8e0d-6cc7736a71bd",
+							"name": "Error - Missing Secret",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"admin@example.com\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/setup",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"setup"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"responseTime": null,
+							"body": "{\n  \"error\": \"Unauthorized - Invalid admin setup key\"\n}"
+						},
+						{
+							"id": "41012247-45cc1009-3904-4d96-8f94-5df6e2b3cc5d",
+							"name": "Error - User Already Exists",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "x-admin-setup-key",
+										"value": "your_admin_setup_secret"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"existing@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/setup",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"setup"
+									]
+								}
+							},
+							"status": "Conflict",
+							"code": 409,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"responseTime": null,
+							"body": "{\n  \"error\": \"User with this email already exists. Use a different email or delete the existing user first.\"\n}"
+						},
+						{
+							"id": "41012247-9c724376-5953-4078-bee2-9d1cfe76c9b6",
+							"name": "Error - Missing Password",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "x-admin-setup-key",
+										"value": "your_admin_setup_secret"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"admin@example.com\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/setup",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"setup"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"responseTime": null,
+							"body": "{\n  \"error\": \"Password is required to create a new admin user\"\n}"
+						}
+					]
+				}
+			],
+			"id": "41012247-299785ac-bb47-4f8e-8135-0b36366d338d",
+			"description": "Admin management endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set dynamic variables",
+					"pm.globals.set('timestamp', new Date().toISOString());"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script",
+					"pm.test('Response time is less than 5000ms', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});",
+					"",
+					"pm.test('Response has correct content type', function () {",
+					"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"description": "Base URL for the Zion Property Care web application"
+		},
+		{
+			"key": "adminSetupSecret",
+			"value": "ADlANBgkqas43hkiG9w0SDVds",
+			"description": "Admin setup secret key from environment variables (ADMIN_SETUP_SECRET)"
+		}
+	]
+}
