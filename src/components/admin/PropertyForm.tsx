@@ -167,7 +167,6 @@ const PropertyForm = ({ property, onSave, onCancel }: PropertyFormProps) => {
         defaultPrice: 0,
         rules: []
       },
-      rating: 4.0,
       reviewCount: 0,
       images: {
         hero: '',
@@ -848,21 +847,6 @@ const PropertyForm = ({ property, onSave, onCancel }: PropertyFormProps) => {
                 min="1"
                 value={formData.maxGuests}
                 onChange={(e) => setFormData(prev => ({ ...prev, maxGuests: parseInt(e.target.value) || 1 }))}
-                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-neutral-200/50 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white/90 transition-all duration-300 shadow-sm h-12"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Rating
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                step="0.1"
-                value={formData.rating}
-                onChange={(e) => setFormData(prev => ({ ...prev, rating: parseFloat(e.target.value) || 4.0 }))}
                 className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-neutral-200/50 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white/90 transition-all duration-300 shadow-sm h-12"
               />
             </div>

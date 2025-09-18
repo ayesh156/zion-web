@@ -9,6 +9,7 @@ import {
   deleteDoc,
   doc,
 } from 'firebase/firestore';
+import { getPropertyWithCalculatedRating } from '@/lib/reviewUtils';
 
 export function useProperties() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -20,7 +21,10 @@ export function useProperties() {
     const querySnapshot = await getDocs(collection(db, 'properties'));
     const props: Property[] = [];
     querySnapshot.forEach((docSnap) => {
-      props.push({ id: docSnap.id, ...docSnap.data() } as Property);
+      const propertyData = { id: docSnap.id, ...docSnap.data() } as Property;
+      // Add calculated rating to each property
+      const propertyWithRating = getPropertyWithCalculatedRating(propertyData);
+      props.push(propertyWithRating);
     });
     setProperties(props);
     setLoading(false);
@@ -53,7 +57,8 @@ export function useProperties() {
 
   // Get property by slug
   const getPropertyBySlug = (slug: string): Property | undefined => {
-    return properties.find((p) => p.slug === slug);
+    const property = properties.find((p) => p.slug === slug);
+    return property ? getPropertyWithCalculatedRating(property) : undefined;
   };
 
   return {

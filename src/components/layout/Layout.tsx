@@ -1,17 +1,32 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { MessageCircle } from 'lucide-react';
 import Header from './Header';
 import Footer from './Footer';
+import Preloader from '../ui/Preloader';
 import { SOCIAL_LINKS } from '@/lib/constants';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const isAdminPage = pathname?.startsWith('/admin');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // For admin pages, return minimal layout without Header/Footer
+  // Check if we're on a property detail page (e.g., /properties/property-slug)
+  const isPropertyPage = pathname?.startsWith('/properties/') && pathname !== '/properties';
+
+  useEffect(() => {
+    // Simulate loading time for demonstration
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500); // 2.5 seconds loading time
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // For admin pages, return minimal layout without Header/Footer and preloader
   if (isAdminPage) {
     return (
       <div className="min-h-screen">
@@ -21,11 +36,21 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
-      <Header />
-      <main className="relative">
-        {children}
-      </main>
+    <>
+      {/* Preloader */}
+      <Preloader isVisible={isLoading} />
+      
+      {/* Main Content */}
+      <motion.div 
+        className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isLoading ? 0 : 1 }}
+        transition={{ duration: 0.6, ease: "easeInOut" }}
+      >
+        <Header />
+        <main className="relative">
+          {children}
+        </main>
       <Footer />
       
       {/* Redesigned Premium WhatsApp Button */}
@@ -33,7 +58,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         href={`https://wa.me/${SOCIAL_LINKS.whatsapp}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 group cursor-pointer"
+        className={`fixed right-6 z-50 group cursor-pointer ${
+          isPropertyPage ? 'bottom-22 lg:bottom-6' : 'bottom-6'
+        }`}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 1, type: "spring", stiffness: 200, damping: 15 }}
@@ -78,7 +105,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>
       </motion.a>
-    </div>
+      </motion.div>
+    </>
   );
 };
 

@@ -26,7 +26,6 @@ const PropertyForm = ({ property, onSave, onCancel }: PropertyFormProps) => {
       defaultPrice: 0,
       rules: [] as PricingRule[]
     },
-    rating: 4.0,
     reviewCount: 0,
     images: {
       hero: '',
@@ -218,21 +217,6 @@ const PropertyForm = ({ property, onSave, onCancel }: PropertyFormProps) => {
                 min="1"
                 value={formData.maxGuests}
                 onChange={(e) => setFormData(prev => ({ ...prev, maxGuests: parseInt(e.target.value) || 1 }))}
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Rating
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                step="0.1"
-                value={formData.rating}
-                onChange={(e) => setFormData(prev => ({ ...prev, rating: parseFloat(e.target.value) || 4.0 }))}
                 className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             </div>

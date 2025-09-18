@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Select, { components, OptionProps, SingleValueProps } from 'react-select';
-import { FaMapMarkerAlt, FaCheckCircle, FaMobileAlt, FaLink, FaLightbulb, FaStar } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaCheckCircle, FaMobileAlt, FaLink, FaLightbulb } from 'react-icons/fa';
 import { 
   X, 
   ChevronLeft, 
@@ -26,14 +27,13 @@ import {
   MessageCircle,
   AlertCircle,
   Star,
-  ExternalLink
+  ExternalLink,
+  Info
 } from 'lucide-react';
 import { Property, UnifiedReview } from '../../data/properties';
 import AmenitiesSelector from './AmenitiesSelector';
 import { EnhancedImageUpload } from '../ui/EnhancedImageUpload';
 import PropertyImageGallery from '../ui/PropertyImageGallery';
-import UnifiedReviewsSummary from '../ui/UnifiedReviewsSummary';
-import { RATING_PLATFORMS } from '@/lib/ratingUtils';
 // import { deleteImageFromFirebase, isFirebaseStorageUrl } from '@/lib/firebase/deleteImage';
 
 // Type definitions
@@ -48,7 +48,6 @@ type FormDataType = Omit<Property, 'id'>;
 // Form steps configuration
 const FORM_STEPS = [
   { id: 'basic', title: 'Basic Info', icon: Home },
-  { id: 'details', title: 'Details', icon: Building2 },
   { id: 'pricing', title: 'Pricing', icon: DollarSign },
   { id: 'images', title: 'Images', icon: Camera },
   { id: 'amenities', title: 'Amenities', icon: Settings },
@@ -62,13 +61,6 @@ const propertyTypeOptions = [
   { value: 'apartment', label: 'Apartment', icon: <Building2 className="w-4 h-4 text-blue-600" /> },
   { value: 'house', label: 'House', icon: <Building2 className="w-4 h-4 text-yellow-600" /> },
   { value: 'resort', label: 'Resort', icon: <Waves className="w-4 h-4 text-cyan-600" /> },
-];
-
-const currencyOptions = [
-  { value: 'USD', label: 'USD', icon: <span className="font-bold">$</span> },
-  { value: 'LKR', label: 'LKR', icon: <span className="font-bold">₨</span> },
-  { value: 'EUR', label: 'EUR', icon: <span className="font-bold">€</span> },
-  { value: 'GBP', label: 'GBP', icon: <span className="font-bold">£</span> },
 ];
 
 // Enhanced custom components for react-select
@@ -187,6 +179,10 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newRule, setNewRule] = useState('');
   
+  // Location content state variables
+  const [newAttraction, setNewAttraction] = useState({ name: '', distance: '' });
+  const [newTransport, setNewTransport] = useState({ name: '', details: '' });
+  
   // Unified Review state - combines platform rating with individual review
   const [newUnifiedReview, setNewUnifiedReview] = useState<UnifiedReview>({
     id: '',
@@ -216,7 +212,6 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
       defaultPrice: 0,
       rules: []
     },
-    rating: 4.0,
     reviewCount: 0,
     ratings: [],
     unifiedReviews: [],
@@ -227,6 +222,11 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
     amenities: [],
     features: [],
     description: '',
+    locationContent: {
+      description: '',
+      nearbyAttractions: [],
+      transportation: []
+    },
     reviews: [],
     rules: [],
     otherRules: '',
@@ -308,12 +308,10 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
         return !!(
           formData.maxGuests > 0 && 
           formData.bedrooms > 0 && 
-          formData.bathrooms > 0 &&
-          formData.rating >= 1 && 
-          formData.rating <= 5
+          formData.bathrooms > 0
         );
       case 2: // Pricing
-        return !!(formData.pricing.currency && formData.pricing.defaultPrice > 0);
+        return formData.pricing.defaultPrice > 0;
       case 3: // Images
         return !!(formData.images.hero.trim());
       case 4: // Amenities
@@ -326,7 +324,7 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
       default:
         return false;
     }
-  }, [formData.title, formData.address, formData.type, formData.locationUrl, formData.maxGuests, formData.bedrooms, formData.bathrooms, formData.rating, formData.pricing.currency, formData.pricing.defaultPrice, formData.images.hero, formData.description, isValidEmbedUrl]);
+  }, [formData.title, formData.address, formData.type, formData.locationUrl, formData.maxGuests, formData.bedrooms, formData.bathrooms, formData.pricing.defaultPrice, formData.images.hero, formData.description, isValidEmbedUrl]);
 
   // Memoized validation state for current step to prevent re-calculations
   const isCurrentStepValid = useMemo(() => validateStep(currentStep), [validateStep, currentStep]);
@@ -356,6 +354,11 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
         reviews: property.reviews || [],
         ratings: property.ratings || [],
         otherRules: property.otherRules || '',
+        locationContent: property.locationContent || {
+          description: '',
+          nearbyAttractions: [],
+          transportation: []
+        },
         policies: property.policies || {
           checkIn: "From 2:00 PM\n\nGuests are required to show a photo ID and credit card at check-in.\nYou need to let the property know what time you'll be arriving in advance.",
           checkOut: '12:00 PM (Noon). Late check-out may be available for an additional fee, subject to availability.',
@@ -367,8 +370,11 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
 
   // Navigation handlers
   const nextStep = useCallback(() => {
-    if (currentStep < FORM_STEPS.length - 1 && isCurrentStepValid) {
-      setCompletedSteps(prev => [...new Set([...prev, currentStep])]);
+    if (currentStep < FORM_STEPS.length - 1) {
+      // Mark current step as completed if it's valid
+      if (isCurrentStepValid) {
+        setCompletedSteps(prev => [...new Set([...prev, currentStep])]);
+      }
       setCurrentStep(prev => prev + 1);
     }
   }, [currentStep, isCurrentStepValid]);
@@ -380,14 +386,36 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
   }, [currentStep]);
 
   const goToStep = useCallback((stepIndex: number) => {
-    // Allow going to previous steps or next step if current is valid
-    if (stepIndex <= currentStep || (stepIndex === currentStep + 1 && isCurrentStepValid)) {
-      if (stepIndex > currentStep && isCurrentStepValid) {
-        setCompletedSteps(prev => [...new Set([...prev, currentStep])]);
+    if (stepIndex >= 0 && stepIndex < FORM_STEPS.length) {
+      // Edit mode: Allow free navigation to any step
+      if (property) {
+        setCurrentStep(stepIndex);
+        return;
       }
-      setCurrentStep(stepIndex);
+      
+      // New property mode: Sequential navigation with final step flexibility
+      if (currentStep === FORM_STEPS.length - 1) {
+        // From final step, allow navigation to any previous step
+        if (stepIndex < FORM_STEPS.length - 1) {
+          setCurrentStep(stepIndex);
+          return;
+        }
+      }
+      
+      // Sequential navigation: only allow forward if current step is valid,
+      // or backward to completed/previous steps
+      if (stepIndex > currentStep) {
+        // Moving forward: only if current step is valid
+        if (isCurrentStepValid) {
+          setCompletedSteps(prev => [...new Set([...prev, currentStep])]);
+          setCurrentStep(stepIndex);
+        }
+      } else {
+        // Moving backward: allow to any previous step
+        setCurrentStep(stepIndex);
+      }
     }
-  }, [currentStep, isCurrentStepValid]);
+  }, [currentStep, isCurrentStepValid, property]);
 
   // Optimized form field handlers - memoized to prevent unnecessary re-renders
   const handleFieldChange = useCallback(
@@ -426,6 +454,53 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
   const handleRemoveRule = useCallback((index: number) => {
     handleFieldChange('rules', (formData.rules || []).filter((_, i) => i !== index));
   }, [formData.rules, handleFieldChange]);
+
+  // Location content handlers - memoized to prevent unnecessary re-renders
+  const handleAddAttraction = useCallback(() => {
+    if (newAttraction.name.trim() && newAttraction.distance.trim()) {
+      const currentContent = formData.locationContent || { description: '', nearbyAttractions: [], transportation: [] };
+      handleFieldChange('locationContent', {
+        ...currentContent,
+        nearbyAttractions: [...currentContent.nearbyAttractions, { ...newAttraction }]
+      });
+      setNewAttraction({ name: '', distance: '' });
+    }
+  }, [newAttraction, formData.locationContent, handleFieldChange]);
+
+  const handleRemoveAttraction = useCallback((index: number) => {
+    const currentContent = formData.locationContent || { description: '', nearbyAttractions: [], transportation: [] };
+    handleFieldChange('locationContent', {
+      ...currentContent,
+      nearbyAttractions: currentContent.nearbyAttractions.filter((_, i) => i !== index)
+    });
+  }, [formData.locationContent, handleFieldChange]);
+
+  const handleAddTransport = useCallback(() => {
+    if (newTransport.name.trim() && newTransport.details.trim()) {
+      const currentContent = formData.locationContent || { description: '', nearbyAttractions: [], transportation: [] };
+      handleFieldChange('locationContent', {
+        ...currentContent,
+        transportation: [...currentContent.transportation, { ...newTransport }]
+      });
+      setNewTransport({ name: '', details: '' });
+    }
+  }, [newTransport, formData.locationContent, handleFieldChange]);
+
+  const handleRemoveTransport = useCallback((index: number) => {
+    const currentContent = formData.locationContent || { description: '', nearbyAttractions: [], transportation: [] };
+    handleFieldChange('locationContent', {
+      ...currentContent,
+      transportation: currentContent.transportation.filter((_, i) => i !== index)
+    });
+  }, [formData.locationContent, handleFieldChange]);
+
+  const handleLocationDescriptionChange = useCallback((description: string) => {
+    const currentContent = formData.locationContent || { description: '', nearbyAttractions: [], transportation: [] };
+    handleFieldChange('locationContent', {
+      ...currentContent,
+      description
+    });
+  }, [formData.locationContent, handleFieldChange]);
 
 
   // Unified Review management handlers
@@ -516,20 +591,36 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
         maxGuests: Math.max(1, formData.maxGuests),
         bedrooms: Math.max(1, formData.bedrooms),
         bathrooms: Math.max(1, formData.bathrooms),
-        rating: Math.min(5, Math.max(1, formData.rating)),
         
         // Set review count based on unified reviews
         reviewCount: (formData.unifiedReviews || []).length,
         
-        // Ensure pricing is valid
+        // Ensure pricing is valid and always USD
         pricing: {
-          ...formData.pricing,
+          currency: 'USD', // Always set to USD
           defaultPrice: Math.max(0, formData.pricing.defaultPrice),
           rules: (formData.pricing.rules || []).filter(rule => rule.price > 0)
         },
         
         // Clean location data
         locationUrl: formData.locationUrl?.trim() || '',
+        
+        // Clean and validate location content
+        locationContent: formData.locationContent ? {
+          description: formData.locationContent.description?.trim() || '',
+          nearbyAttractions: (formData.locationContent.nearbyAttractions || [])
+            .filter(attraction => attraction.name.trim() && attraction.distance.trim())
+            .map(attraction => ({
+              name: attraction.name.trim(),
+              distance: attraction.distance.trim()
+            })),
+          transportation: (formData.locationContent.transportation || [])
+            .filter(transport => transport.name.trim() && transport.details.trim())
+            .map(transport => ({
+              name: transport.name.trim(),
+              details: transport.details.trim()
+            }))
+        } : undefined,
         
         // Ensure policies exist
         policies: {
@@ -559,11 +650,12 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
         <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
           <Home className="w-8 h-8 text-blue-600" />
         </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Property Basics</h3>
-  <p className="text-gray-600">Let&rsquo;s start with the essential information about your property</p>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Property Information</h3>
+        <p className="text-gray-600">Essential information and details about your property</p>
       </div>
 
       <div className="space-y-6">
+        {/* Property Title */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             Property Title *
@@ -573,120 +665,29 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
             value={formData.title}
             onChange={(e) => handleFieldChange('title', e.target.value)}
             className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 shadow-sm"
-            placeholder="e.g., Luxury Villa with Ocean View"
+            placeholder="Ex: Luxury Villa with Ocean View"
             required
           />
         </div>
 
+        {/* Address */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             Address (for display) *
           </label>
           <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               value={formData.address}
               onChange={(e) => handleFieldChange('address', e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 shadow-sm"
-              placeholder="e.g., 123 Main St, Colombo, Sri Lanka"
+              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 shadow-sm"
+              placeholder="Ex: Colombo, Sri Lanka"
               required
             />
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Embedded Map URL (iframe src)
-          </label>
-          <input
-            type="text"
-            value={formData.locationUrl}
-            onChange={(e) => {
-              const input = e.target.value;
-              // Automatically extract URL from iframe code if needed
-              const extractedUrl = extractUrlFromIframe(input);
-              handleFieldChange('locationUrl', extractedUrl);
-            }}
-            className={`w-full px-4 py-3 bg-white/80 backdrop-blur-sm border rounded-xl focus:ring-2 transition-all duration-300 shadow-sm ${
-              formData.locationUrl && !isValidEmbedUrl(formData.locationUrl)
-                ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
-                : formData.locationUrl && isValidEmbedUrl(formData.locationUrl)
-                ? 'border-green-300 focus:ring-green-500/20 focus:border-green-500'
-                : 'border-gray-200 focus:ring-blue-500/20 focus:border-blue-500'
-            }`}
-            placeholder="Paste iframe code or just the src URL: https://www.google.com/maps/embed?pb=..."
-          />
-          
-          {/* Validation indicators */}
-          {formData.locationUrl && (
-            <div className="mt-2 flex items-center gap-2">
-              {isValidEmbedUrl(formData.locationUrl) ? (
-                <div className="flex items-center gap-1 text-green-600">
-                  <Check className="w-4 h-4" />
-                  <span className="text-xs">Valid embed URL</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-xs">Please enter a valid Google Maps embed URL</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Instructions */}
-          <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs text-blue-700 font-medium mb-2 flex items-center gap-2">
-              <FaMapMarkerAlt className="text-blue-600" />
-              How to get the Google Maps embed code:
-            </p>
-            <ol className="text-xs text-blue-600 space-y-1 ml-4 list-decimal">
-              <li>Go to <span className="font-medium">maps.google.com</span> and search for your property</li>
-              <li>Click <span className="font-medium">&quot;Share&quot;</span> → <span className="font-medium">&quot;Embed a map&quot;</span></li>
-              <li>Copy the <strong>entire iframe code</strong> and paste it here</li>
-              <li>Or copy just the <span className="font-medium">src=&quot;...&quot;</span> URL portion</li>
-            </ol>
-            <div className="mt-3 p-2 bg-blue-100 rounded text-xs">
-              <p className="text-blue-800 font-medium mb-1 flex items-center gap-2">
-                <FaCheckCircle className="text-green-600" />
-                Both formats work:
-              </p>
-              <p className="text-blue-700 flex items-center gap-2">
-                <FaMobileAlt className="text-blue-600" />
-                <strong>Full iframe:</strong> <code>&lt;iframe src=&quot;...&quot; ...&gt;&lt;/iframe&gt;</code>
-              </p>
-              <p className="text-blue-700 flex items-center gap-2">
-                <FaLink className="text-blue-600" />
-                <strong>Just URL:</strong> <code>https://www.google.com/maps/embed?pb=...</code>
-              </p>
-            </div>
-          </div>
-
-          {/* Live Preview */}
-          {formData.locationUrl && isValidEmbedUrl(formData.locationUrl) && (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">Map Preview:</p>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
-                <iframe
-                  src={formData.locationUrl}
-                  width="100%"
-                  height="250"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="w-full"
-                  title="Property Location Map Preview"
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                This is how the map will appear on your property page
-              </p>
-            </div>
-          )}
-        </div>
-
+        {/* Property Type */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             Property Type *
@@ -703,96 +704,170 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
             placeholder="Select property type"
           />
         </div>
+
+        {/* Property Details Grid */}
+        <div>
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-blue-600" />
+            Property Details
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Max Guests *
+              </label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600 z-10 pointer-events-none" />
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.maxGuests}
+                  onChange={(e) => handleFieldChange('maxGuests', parseInt(e.target.value) || 1)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 shadow-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Bedrooms *
+              </label>
+              <div className="relative">
+                <Bed className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-600 z-10 pointer-events-none" />
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.bedrooms}
+                  onChange={(e) => handleFieldChange('bedrooms', parseInt(e.target.value) || 1)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 shadow-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Bathrooms *
+              </label>
+              <div className="relative">
+                <Bath className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-cyan-600 z-10 pointer-events-none" />
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.bathrooms}
+                  onChange={(e) => handleFieldChange('bathrooms', parseInt(e.target.value) || 1)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 shadow-sm"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Map URL Section */}
+        <div>
+          <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-blue-600" />
+            Location Map
+          </h4>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Embedded Map URL (iframe src)
+            </label>
+            <input
+              type="text"
+              value={formData.locationUrl}
+              onChange={(e) => {
+                const input = e.target.value;
+                // Automatically extract URL from iframe code if needed
+                const extractedUrl = extractUrlFromIframe(input);
+                handleFieldChange('locationUrl', extractedUrl);
+              }}
+              className={`w-full px-4 py-3 bg-white/80 backdrop-blur-sm border rounded-xl focus:ring-2 transition-all duration-300 shadow-sm ${
+                formData.locationUrl && !isValidEmbedUrl(formData.locationUrl)
+                  ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                  : formData.locationUrl && isValidEmbedUrl(formData.locationUrl)
+                  ? 'border-green-300 focus:ring-green-500/20 focus:border-green-500'
+                  : 'border-gray-200 focus:ring-blue-500/20 focus:border-blue-500'
+              }`}
+              placeholder="Paste iframe code or just the src URL: https://www.google.com/maps/embed?pb=..."
+            />
+            
+            {/* Validation indicators */}
+            {formData.locationUrl && (
+              <div className="mt-2 flex items-center gap-2">
+                {isValidEmbedUrl(formData.locationUrl) ? (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <Check className="w-4 h-4" />
+                    <span className="text-xs">Valid embed URL</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-xs">Please enter a valid Google Maps embed URL</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Instructions */}
+            <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700 font-medium mb-2 flex items-center gap-2">
+                <FaMapMarkerAlt className="text-blue-600" />
+                How to get the Google Maps embed code:
+              </p>
+              <ol className="text-xs text-blue-600 space-y-1 ml-4 list-decimal">
+                <li>Go to <span className="font-medium">maps.google.com</span> and search for your property</li>
+                <li>Click <span className="font-medium">&quot;Share&quot;</span> → <span className="font-medium">&quot;Embed a map&quot;</span></li>
+                <li>Copy the <strong>entire iframe code</strong> and paste it here</li>
+                <li>Or copy just the <span className="font-medium">src=&quot;...&quot;</span> URL portion</li>
+              </ol>
+              <div className="mt-3 p-2 bg-blue-100 rounded text-xs">
+                <p className="text-blue-800 font-medium mb-1 flex items-center gap-2">
+                  <FaCheckCircle className="text-green-600" />
+                  Both formats work:
+                </p>
+                <p className="text-blue-700 flex items-center gap-2">
+                  <FaMobileAlt className="text-blue-600" />
+                  <strong>Full iframe:</strong> <code>&lt;iframe src=&quot;...&quot; ...&gt;&lt;/iframe&gt;</code>
+                </p>
+                <p className="text-blue-700 flex items-center gap-2">
+                  <FaLink className="text-blue-600" />
+                  <strong>Just URL:</strong> <code>https://www.google.com/maps/embed?pb=...</code>
+                </p>
+              </div>
+            </div>
+
+            {/* Live Preview */}
+            {formData.locationUrl && isValidEmbedUrl(formData.locationUrl) && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Map Preview:</p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                  <iframe
+                    src={formData.locationUrl}
+                    width="100%"
+                    height="250"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="w-full"
+                    title="Property Location Map Preview"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  This is how the map will appear on your property page
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </motion.div>
-  ), [formData.title, formData.address, formData.locationUrl, formData.type, handleFieldChange, isValidEmbedUrl, extractUrlFromIframe]);
+  ), [formData.title, formData.address, formData.locationUrl, formData.type, formData.maxGuests, formData.bedrooms, formData.bathrooms, handleFieldChange, isValidEmbedUrl, extractUrlFromIframe]);
 
-  const DetailsStep = useMemo(() => (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="space-y-6"
-    >
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-          <Building2 className="w-8 h-8 text-green-600" />
-        </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Property Details</h3>
-        <p className="text-gray-600">Tell us about the capacity and layout</p>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Max Guests *
-          </label>
-          <div className="relative">
-            <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="number"
-              min="1"
-              value={formData.maxGuests}
-              onChange={(e) => handleFieldChange('maxGuests', parseInt(e.target.value) || 1)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 shadow-sm"
-              required
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Bedrooms *
-          </label>
-          <div className="relative">
-            <Bed className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="number"
-              min="1"
-              value={formData.bedrooms}
-              onChange={(e) => handleFieldChange('bedrooms', parseInt(e.target.value) || 1)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 shadow-sm"
-              required
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Bathrooms *
-          </label>
-          <div className="relative">
-            <Bath className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="number"
-              min="1"
-              value={formData.bathrooms}
-              onChange={(e) => handleFieldChange('bathrooms', parseInt(e.target.value) || 1)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 shadow-sm"
-              required
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Rating
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="5"
-            step="0.1"
-            value={formData.rating}
-            onChange={(e) => handleFieldChange('rating', parseFloat(e.target.value) || 4.0)}
-            className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 shadow-sm"
-          />
-        </div>
-      </div>
-    </motion.div>
-  ), [formData.maxGuests, formData.bedrooms, formData.bathrooms, formData.rating, handleFieldChange]);
 
   const PricingStep = useMemo(() => (
     <motion.div
@@ -806,47 +881,42 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
           <DollarSign className="w-8 h-8 text-purple-600" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Pricing Information</h3>
-        <p className="text-gray-600">Set your rates and currency</p>
+        <p className="text-gray-600">Set your rates in US Dollars</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Currency *
-          </label>
-          <Select
-            options={currencyOptions}
-            value={currencyOptions.find(opt => opt.value === formData.pricing.currency)}
-            onChange={(opt) => handleNestedFieldChange('pricing', 'currency', (opt as OptionType).value as string)}
-            components={{ Option, SingleValue }}
-            styles={getSelectStyles()}
-            menuPortalTarget={document.body}
-            menuPosition="fixed"
-            className="w-full"
-            placeholder="Select currency"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Default Price *
+            Default Price (USD per night) *
           </label>
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-600 z-10 pointer-events-none" />
             <input
               type="number"
               min="0"
               value={formData.pricing.defaultPrice}
               onChange={(e) => handleNestedFieldChange('pricing', 'defaultPrice', parseFloat(e.target.value) || 0)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 shadow-sm"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 shadow-sm"
               placeholder="Enter price per night"
               required
             />
           </div>
         </div>
       </div>
+
+      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="text-sm font-semibold text-blue-900 mb-1">Date-Specific Pricing</h4>
+            <p className="text-sm text-blue-700">
+              You can add date-specific pricing later to set custom rates for holidays, peak seasons, or special events.
+            </p>
+          </div>
+        </div>
+      </div>
     </motion.div>
-  ), [formData.pricing.currency, formData.pricing.defaultPrice, handleNestedFieldChange]);
+  ), [formData.pricing.defaultPrice, handleNestedFieldChange]);
 
   const ImagesStep = useMemo(() => {
     const ImagesStepComponent = () => {
@@ -995,295 +1065,303 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="space-y-8"
+      className="space-y-6"
     >
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-full mb-4">
-          <MessageCircle className="w-8 h-8 text-yellow-600" />
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
+          <Star className="w-8 h-8 text-yellow-600 fill-current" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Reviews & Ratings</h3>
-        <p className="text-gray-600">Showcase customer feedback and platform ratings</p>
+        <p className="text-gray-600">Add customer reviews from different platforms</p>
       </div>
 
-      {/* Unified Reviews Summary */}
-      <UnifiedReviewsSummary 
-        reviews={formData.unifiedReviews || []}
-        className="mb-8"
-      />
-
-      {/* Single Unified Reviews Component */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
-        {/* Component Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Star className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900">Add Customer Review</h4>
-              <p className="text-sm text-gray-600">Share authentic customer feedback</p>
-            </div>
+      {/* Add New Review Form */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Add New Review</h4>
+        
+        {/* Platform Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Platform *
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { key: 'google', name: 'Google', icon: '/brands/google.svg' },
+              { key: 'booking', name: 'Booking.com', icon: '/brands/bookingcom.svg' },
+              { key: 'airbnb', name: 'Airbnb', icon: '/brands/airbnb.svg' },
+              { key: 'tripadvisor', name: 'TripAdvisor', icon: '/brands/tripadvisor.svg' },
+              { key: 'other', name: 'Other', icon: null }
+            ].map((platform) => (
+              <button
+                key={platform.key}
+                type="button"
+                onClick={() => setNewUnifiedReview(r => ({ 
+                  ...r, 
+                  platform: platform.key as UnifiedReview['platform'],
+                  maxScale: platform.key === 'booking' ? 10 : 5
+                }))}
+                className={`
+                  p-4 rounded-lg border-2 transition-all duration-200 flex flex-col items-center gap-2
+                  ${newUnifiedReview.platform === platform.key
+                    ? 'border-blue-500 bg-blue-50 shadow-md'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }
+                `}
+              >
+                {platform.icon ? (
+                  <Image 
+                    src={platform.icon} 
+                    alt={platform.name}
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 object-contain"
+                  />
+                ) : (
+                  <Star className="w-8 h-8 text-yellow-500 fill-current" />
+                )}
+                <span className="text-sm font-medium text-gray-900">{platform.name}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Form Content */}
-        <div className="p-6 space-y-6">
-          {/* Platform Selection - Mobile-First Responsive Grid */}
+        {/* Form Fields */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Rating */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Platform Source *
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Rating * (0-{newUnifiedReview.maxScale})
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {Object.entries(RATING_PLATFORMS).map(([key, config]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setNewUnifiedReview(r => ({ 
-                    ...r, 
-                    platform: key as UnifiedReview['platform'],
-                    maxScale: key === 'booking' ? 10 : 5
-                  }))}
-                  className={`
-                    relative p-4 rounded-xl border-2 transition-all duration-300 
-                    flex flex-col items-center gap-2 min-h-[80px] sm:min-h-[90px]
-                    hover:shadow-md hover:scale-105 transform
-                    ${newUnifiedReview.platform === key
-                      ? `${config.borderColor} ${config.bgColor} border-opacity-100 shadow-lg scale-105`
-                      : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
-                    }
-                  `}
-                >
-                  <span className="text-xl sm:text-2xl">
-                    <config.icon />
-                  </span>
-                  <span className={`
-                    text-xs sm:text-sm font-medium text-center leading-tight
-                    ${newUnifiedReview.platform === key ? config.color : 'text-gray-600'}
-                  `}>
-                    {config.displayName}
-                  </span>
-                  {newUnifiedReview.platform === key && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                      <Check className="w-2.5 h-2.5 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max={newUnifiedReview.maxScale}
+                step="0.1"
+                value={newUnifiedReview.rating}
+                onChange={(e) => setNewUnifiedReview(r => ({ 
+                  ...r, 
+                  rating: Math.min(parseFloat(e.target.value) || 0, newUnifiedReview.maxScale)
+                }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="4.5"
+                required
+              />
+              <Star className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-yellow-500 fill-current" />
             </div>
           </div>
 
-          {/* Rating and Review Details - Responsive Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Rating Input */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Rating * ({newUnifiedReview.maxScale === 10 ? '1-10' : '1-5'} scale)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max={newUnifiedReview.maxScale}
-                    step="0.1"
-                    value={newUnifiedReview.rating}
-                    onChange={(e) => setNewUnifiedReview(r => ({ 
-                      ...r, 
-                      rating: Math.min(parseFloat(e.target.value) || 0, newUnifiedReview.maxScale)
-                    }))}
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 text-lg font-medium"
-                    placeholder={newUnifiedReview.maxScale === 10 ? "8.5" : "4.5"}
-                    required
-                  />
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    <Star className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Reviewer Name
-                </label>
-                <input
-                  type="text"
-                  value={newUnifiedReview.reviewerName}
-                  onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewerName: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300"
-                  placeholder="Enter Reviewer Name"
-                />
-              </div>
-            </div>
-
-            {/* Review Date and Source */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Review Date
-                </label>
-                <input
-                  type="date"
-                  value={newUnifiedReview.reviewDate}
-                  onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewDate: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Review Source URL
-                </label>
-                <input
-                  type="url"
-                  value={newUnifiedReview.reviewSourceUrl}
-                  onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewSourceUrl: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300"
-                  placeholder="https://example.com/review"
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Review Text - Full Width */}
+          {/* Reviewer Name */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Review Text
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reviewer Name
             </label>
-            <textarea
-              value={newUnifiedReview.reviewText}
-              onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewText: e.target.value }))}
-              rows={4}
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 resize-none"
-              placeholder="Share what the customer said about their experience..."
+            <input
+              type="text"
+              value={newUnifiedReview.reviewerName}
+              onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewerName: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="John Doe"
             />
           </div>
 
-          {/* Add Button */}
-          <div className="flex justify-end pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={handleAddUnifiedReview}
-              disabled={newUnifiedReview.rating <= 0}
-              className="
-                px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white 
-                rounded-xl hover:from-blue-700 hover:to-indigo-700 
-                transition-all duration-300 disabled:from-gray-400 disabled:to-gray-400 
-                flex items-center gap-2 font-medium shadow-lg hover:shadow-xl
-                transform hover:scale-105 disabled:transform-none disabled:hover:scale-100
-              "
-            >
-              <Plus className="w-4 h-4" />
-              Add Review
-            </button>
+          {/* Review Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review Date
+            </label>
+            <input
+              type="date"
+              value={newUnifiedReview.reviewDate}
+              onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewDate: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
           </div>
+
+          {/* Source URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review Source URL
+            </label>
+            <input
+              type="url"
+              value={newUnifiedReview.reviewSourceUrl}
+              onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewSourceUrl: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="https://..."
+            />
+          </div>
+        </div>
+
+        {/* Review Text */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Review Text
+          </label>
+          <textarea
+            value={newUnifiedReview.reviewText}
+            onChange={(e) => setNewUnifiedReview(r => ({ ...r, reviewText: e.target.value }))}
+            rows={3}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+            placeholder="What did the customer say about their experience?"
+          />
+        </div>
+
+        {/* Add Button */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleAddUnifiedReview}
+            disabled={!newUnifiedReview.platform || newUnifiedReview.rating <= 0}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Review
+          </button>
         </div>
       </div>
 
-      {/* Existing Reviews - Premium Display */}
+      {/* Existing Reviews List */}
       {(formData.unifiedReviews && formData.unifiedReviews.length > 0) && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
-          {/* Reviews Header */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+        <div className="space-y-4">
+          {/* Enhanced Review Summary */}
+          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <MessageCircle className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900">Customer Reviews</h4>
-                  <p className="text-sm text-gray-600">{formData.unifiedReviews.length} review{formData.unifiedReviews.length !== 1 ? 's' : ''} added</p>
-                </div>
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900">
+                  Review Summary
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {formData.unifiedReviews.length} review{formData.unifiedReviews.length !== 1 ? 's' : ''} added
+                </p>
               </div>
-              <div className="text-2xl font-bold text-gray-900">
-                {(formData.unifiedReviews.reduce((sum, review, idx, arr) => {
-                  const normalizedRating = review.maxScale === 10 ? review.rating / 2 : review.rating;
-                  return sum + normalizedRating / arr.length;
-                }, 0)).toFixed(1)} <FaStar className="inline w-4 h-4 text-yellow-500" />
+              <div className="text-right">
+                <div className="flex items-center gap-2 justify-end mb-1">
+                  <Star className="w-6 h-6 text-yellow-500 fill-current" />
+                  <span className="text-2xl font-bold text-gray-900">
+                    {(formData.unifiedReviews.reduce((sum, review) => {
+                      const normalizedRating = review.maxScale === 10 ? review.rating / 2 : review.rating;
+                      return sum + normalizedRating;
+                    }, 0) / formData.unifiedReviews.length).toFixed(1)}
+                  </span>
+                  <span className="text-lg text-gray-600">/5.0</span>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Overall Rating
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Reviews List */}
-          <div className="p-6">
-            <div className="grid gap-4">
-              {formData.unifiedReviews.map((review, idx) => {
-                const platformConfig = RATING_PLATFORMS[review.platform];
-                const normalizedRating = review.maxScale === 10 ? review.rating / 2 : review.rating;
-                
-                return (
-                  <div key={review.id || idx} className={`
-                    relative p-5 rounded-xl border-2 transition-all duration-300 hover:shadow-md
-                    ${platformConfig.bgColor} ${platformConfig.borderColor}
-                  `}>
-                    {/* Review Header */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${platformConfig.bgColor} border ${platformConfig.borderColor}`}>
-                          <span className="text-lg">
-                            <platformConfig.icon />
+          <div className="space-y-3">
+            {formData.unifiedReviews.map((review, idx) => {
+              const platformIcons = {
+                google: '/brands/google.svg',
+                booking: '/brands/bookingcom.svg',
+                airbnb: '/brands/airbnb.svg',
+                tripadvisor: '/brands/tripadvisor.svg',
+                other: null
+              };
+
+              const platformNames = {
+                google: 'Google',
+                booking: 'Booking.com',
+                airbnb: 'Airbnb',
+                tripadvisor: 'TripAdvisor',
+                other: 'Other'
+              };
+
+              return (
+                <div key={review.id || idx} className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      {platformIcons[review.platform] ? (
+                        <Image 
+                          src={platformIcons[review.platform]!} 
+                          alt={platformNames[review.platform]}
+                          width={24}
+                          height={24}
+                          className="w-6 h-6 object-contain"
+                        />
+                      ) : (
+                        <Star className="w-6 h-6 text-yellow-500 fill-current" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">
+                            {platformNames[review.platform]}
                           </span>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-gray-800 flex items-center gap-2">
-                            {platformConfig.displayName}
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: Math.floor(normalizedRating) }).map((_, i) => (
-                                <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
-                              ))}
-                              <span className="text-sm font-bold text-gray-700 ml-1">
-                                {review.rating.toFixed(1)}/{review.maxScale}
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star 
+                                key={i} 
+                                className={`w-4 h-4 ${
+                                  i < Math.floor(review.maxScale === 10 ? review.rating / 2 : review.rating)
+                                    ? 'text-yellow-500 fill-current'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                            <span className="text-sm font-medium text-gray-700 ml-1">
+                              {review.rating}/{review.maxScale}
+                            </span>
                           </div>
-                          {review.reviewerName && (
-                            <div className="text-sm text-gray-600 flex items-center gap-2">
-                              <span>{review.reviewerName}</span>
-                              {review.reviewDate && (
-                                <>
-                                  <span>•</span>
-                                  <span>{new Date(review.reviewDate).toLocaleDateString()}</span>
-                                </>
-                              )}
-                            </div>
-                          )}
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {review.reviewSourceUrl && (
-                          <a
-                            href={review.reviewSourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`${platformConfig.color} hover:underline flex items-center gap-1 text-sm transition-colors`}
-                            title="View original review"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                        {review.reviewerName && (
+                          <div className="text-sm text-gray-600">
+                            by {review.reviewerName}
+                            {review.reviewDate && (
+                              <span className="ml-2">• {new Date(review.reviewDate).toLocaleDateString()}</span>
+                            )}
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveUnifiedReview(idx)}
-                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          title="Remove review"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
                     
-                    {/* Review Content */}
-                    {review.reviewText && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <p className="text-sm text-gray-700 italic leading-relaxed">
-                          &ldquo;{review.reviewText}&rdquo;
-                        </p>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {review.reviewSourceUrl && review.platform !== 'other' && (
+                        <a
+                          href={review.reviewSourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="View original review"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                      {review.reviewSourceUrl && review.platform === 'other' && (
+                        <a
+                          href={review.reviewSourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-600 hover:text-gray-800 transition-colors"
+                          title="View source"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveUnifiedReview(idx)}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                        title="Remove review"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                  
+                  {review.reviewText && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-gray-700 text-sm italic">
+                        &ldquo;{review.reviewText}&rdquo;
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1380,6 +1458,136 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
         />
       </div>
 
+      {/* Location Content Section */}
+      <div className="border-t border-gray-200 pt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <MapPin className="w-5 h-5 text-indigo-600" />
+          <h4 className="text-lg font-semibold text-gray-900">Location Content</h4>
+        </div>
+        
+        {/* Location Description */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Location Description
+          </label>
+          <textarea
+            value={formData.locationContent?.description || ''}
+            onChange={(e) => handleLocationDescriptionChange(e.target.value)}
+            rows={4}
+            className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-300 shadow-sm resize-none"
+            placeholder="Describe the location, neighborhood, and what makes it special..."
+          />
+        </div>
+
+        {/* Nearby Attractions */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Nearby Attractions
+          </label>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={newAttraction.name}
+                onChange={(e) => setNewAttraction(prev => ({ ...prev, name: e.target.value }))}
+                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                placeholder="Attraction name..."
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newAttraction.distance}
+                  onChange={(e) => setNewAttraction(prev => ({ ...prev, distance: e.target.value }))}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  placeholder="Distance (e.g., 10 min drive)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddAttraction}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            
+            {formData.locationContent?.nearbyAttractions && formData.locationContent.nearbyAttractions.length > 0 && (
+              <div className="space-y-2">
+                {formData.locationContent.nearbyAttractions.map((attraction, index) => (
+                  <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <span className="font-medium text-sm text-gray-900">{attraction.name}</span>
+                      <span className="text-xs text-gray-600 ml-2">- {attraction.distance}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttraction(index)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Transportation */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Transportation
+          </label>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={newTransport.name}
+                onChange={(e) => setNewTransport(prev => ({ ...prev, name: e.target.value }))}
+                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                placeholder="Transportation option..."
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newTransport.details}
+                  onChange={(e) => setNewTransport(prev => ({ ...prev, details: e.target.value }))}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  placeholder="Details (e.g., 45 min drive)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTransport}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            
+            {formData.locationContent?.transportation && formData.locationContent.transportation.length > 0 && (
+              <div className="space-y-2">
+                {formData.locationContent.transportation.map((transport, index) => (
+                  <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <span className="font-medium text-sm text-gray-900">{transport.name}</span>
+                      <span className="text-xs text-gray-600 ml-2">- {transport.details}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTransport(index)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Property Policies */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -1424,22 +1632,29 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
     formData.rules,
     formData.otherRules,
     formData.policies,
+    formData.locationContent,
     newRule,
+    newAttraction,
+    newTransport,
     handleFieldChange,
     handleAddRule,
     handleRemoveRule,
+    handleAddAttraction,
+    handleRemoveAttraction,
+    handleAddTransport,
+    handleRemoveTransport,
+    handleLocationDescriptionChange,
     updatePolicyField
   ]);
 
   const renderStepContent = () => {
     switch (currentStep) {
       case 0: return BasicInfoStep;
-      case 1: return DetailsStep;
-      case 2: return PricingStep;
-      case 3: return ImagesStep;
-      case 4: return AmenitiesStep;
-  case 5: return ContentStep;
-  case 6: return ReviewsStep;
+      case 1: return PricingStep;
+      case 2: return ImagesStep;
+      case 3: return AmenitiesStep;
+      case 4: return ContentStep;
+      case 5: return ReviewsStep;
       default: return null;
     }
   };
@@ -1475,7 +1690,7 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
               </p>
             </div>
             <motion.button
-              whileHover={{ scale: 1.1, rotate: 90 }}
+              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={onCancel}
               className="p-2 sm:p-3 text-gray-400 hover:text-gray-600 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl sm:rounded-2xl transition-all duration-300"
@@ -1490,8 +1705,24 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
   {FORM_STEPS.map((step, index) => {
     const isCompleted = completedSteps.includes(index);
     const isCurrent = index === currentStep;
-    const isClickable =
-      index <= currentStep || (index === currentStep + 1 && isCurrentStepValid);
+    
+    // Determine if step is clickable based on mode and position
+    let isClickable = false;
+    
+    if (property) {
+      // Edit mode: all steps are clickable
+      isClickable = true;
+    } else {
+      // New property mode
+      if (currentStep === FORM_STEPS.length - 1) {
+        // From final step: can go to any previous step
+        isClickable = index < FORM_STEPS.length - 1 || index === currentStep;
+      } else {
+        // Sequential mode: can go backward or to current step
+        isClickable = index <= currentStep || (index === currentStep + 1 && isCurrentStepValid);
+      }
+    }
+    
     const StepIcon = step.icon;
 
     return (
@@ -1502,23 +1733,39 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
             onClick={() => isClickable && goToStep(index)}
             disabled={!isClickable}
             className={`
-              flex items-center justify-center w-10 sm:w-12 h-10 sm:h-12 rounded-full transition-all duration-300 mb-2
+              flex items-center justify-center w-10 sm:w-12 h-10 sm:h-12 rounded-full transition-all duration-300 mb-2 relative
               ${isCurrent 
                 ? 'bg-blue-600 text-white shadow-lg scale-110' 
                 : isCompleted 
-                  ? 'bg-green-600 text-white' 
+                  ? 'bg-green-600 text-white hover:bg-green-700' 
                   : isClickable
-                    ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-200 text-gray-600 hover:bg-blue-100 hover:text-blue-600 cursor-pointer'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
               }
             `}
             whileHover={isClickable ? { scale: 1.05 } : {}}
             whileTap={isClickable ? { scale: 0.95 } : {}}
+            title={
+              !isClickable && !property && currentStep !== FORM_STEPS.length - 1 
+                ? 'Complete current step to proceed' 
+                : property 
+                  ? 'Click to edit this section'
+                  : currentStep === FORM_STEPS.length - 1
+                    ? 'Click to review this section'
+                    : 'Click to navigate'
+            }
           >
             {isCompleted ? (
               <Check className="w-4 sm:w-5 h-4 sm:h-5" />
             ) : (
               <StepIcon className="w-4 sm:w-5 h-4 sm:h-5" />
+            )}
+            
+            {/* Edit mode indicator */}
+            {property && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full flex items-center justify-center">
+                <div className="w-1.5 h-1.5 bg-white rounded-full" />
+              </div>
             )}
           </motion.button>
           <div className="text-xs font-medium text-gray-600 text-center px-1">
@@ -1566,20 +1813,47 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
               <span className="font-medium">Previous</span>
             </button>
 
-            {/* Validation Status - Hidden on mobile, shown on larger screens */}
+            {/* Navigation Status - Hidden on mobile, shown on larger screens */}
             <div className="flex items-center gap-2 text-xs sm:text-sm order-first sm:order-none">
-              {isCurrentStepValid ? (
-                <div className="flex items-center gap-1 text-green-600">
-                  <Check className="w-4 h-4" />
-                  <span className="hidden sm:inline">Ready to continue</span>
-                  <span className="sm:hidden">Ready</span>
+              {property ? (
+                // Edit mode status
+                <div className="flex items-center gap-1 text-purple-600">
+                  <div className="w-4 h-4 rounded-full bg-purple-100 flex items-center justify-center">
+                    <div className="w-2 h-2 bg-purple-600 rounded-full" />
+                  </div>
+                  <span className="hidden sm:inline">Edit mode - Jump to any section</span>
+                  <span className="sm:hidden">Edit mode</span>
                 </div>
+              ) : currentStep === FORM_STEPS.length - 1 ? (
+                // Final step - show validation status for submission
+                isCurrentStepValid ? (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <Check className="w-4 h-4" />
+                    <span className="hidden sm:inline">Ready to save • Click any step to review</span>
+                    <span className="sm:hidden">Ready to save</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-amber-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline">Complete required fields to save</span>
+                    <span className="sm:hidden">Incomplete</span>
+                  </div>
+                )
               ) : (
-                <div className="flex items-center gap-1 text-amber-600">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">Please complete required fields</span>
-                  <span className="sm:hidden">Required fields</span>
-                </div>
+                // Sequential steps - show progression status
+                isCurrentStepValid ? (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <Check className="w-4 h-4" />
+                    <span className="hidden sm:inline">Step complete • Click Next to continue</span>
+                    <span className="sm:hidden">Complete</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-blue-600">
+                    <Info className="w-4 h-4" />
+                    <span className="hidden sm:inline">Complete required fields to proceed</span>
+                    <span className="sm:hidden">Required</span>
+                  </div>
+                )
               )}
             </div>
 
@@ -1588,8 +1862,15 @@ const PropertyFormMultiStep = ({ property, onSave, onCancel }: PropertyFormProps
               <button
                 type="button"
                 onClick={nextStep}
-                disabled={!isCurrentStepValid}
-                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl transition-colors font-medium disabled:cursor-not-allowed w-full sm:w-auto justify-center min-w-[120px] text-sm sm:text-base"
+                disabled={!property && !isCurrentStepValid} // Enforce validation for new properties only
+                className={`
+                  flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl transition-colors font-medium w-full sm:w-auto justify-center min-w-[120px] text-sm sm:text-base
+                  ${!property && !isCurrentStepValid 
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }
+                `}
+                title={!property && !isCurrentStepValid ? 'Complete required fields to proceed' : ''}
               >
                 <span>Next</span>
                 <ChevronRight className="w-4 h-4" />

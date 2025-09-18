@@ -80,6 +80,8 @@ export interface UserDocument {
   name?: string;
   role: 'user' | 'admin';
   isAdmin: boolean;
+  status?: 'active' | 'inactive' | 'pending';
+  emailVerified?: boolean;
   createdAt: Date;
   lastLogin?: Date;
   updatedAt: Date;

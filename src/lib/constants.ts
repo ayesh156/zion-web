@@ -1,6 +1,7 @@
 // Business and Contact Information Constants
 export const BUSINESS_INFO = {
   name: 'Zion Property Care',
+  slogan: 'Built on Trust', 
   tagline: 'Premium Property Management & Vacation Rentals',
   description: 'Experience authentic Sri Lankan hospitality with our carefully curated properties across the island\'s most beautiful destinations.',
   

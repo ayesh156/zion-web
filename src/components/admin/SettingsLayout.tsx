@@ -3,15 +3,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Building2, 
-  Shield,
-  Users,
   Settings as SettingsIcon
 } from 'lucide-react';
 import GeneralSettings from './GeneralSettings';
-import PropertySettings from './PropertySettings';
-import SecuritySettings from './SecuritySettings';
-import UserManagement from './UserManagement';
 
 const SettingsLayout = () => {
   const [activeTab, setActiveTab] = useState('general');
@@ -21,25 +15,7 @@ const SettingsLayout = () => {
       id: 'general', 
       label: 'General', 
       icon: SettingsIcon,
-      description: 'Basic system configuration'
-    },
-    { 
-      id: 'properties', 
-      label: 'Properties', 
-      icon: Building2,
-      description: 'Property management settings'
-    },
-    { 
-      id: 'security', 
-      label: 'Security', 
-      icon: Shield,
-      description: 'Access control and authentication'
-    },
-    { 
-      id: 'users', 
-      label: 'User Management', 
-      icon: Users,
-      description: 'Manage admin users and roles'
+      description: 'Contact form and notification settings'
     }
   ];
 
@@ -47,12 +23,6 @@ const SettingsLayout = () => {
     switch (activeTab) {
       case 'general':
         return <GeneralSettings />;
-      case 'properties':
-        return <PropertySettings />;
-      case 'security':
-        return <SecuritySettings />;
-      case 'users':
-        return <UserManagement />;
       default:
         return <GeneralSettings />;
     }
@@ -67,7 +37,7 @@ const SettingsLayout = () => {
         transition={{ duration: 0.6 }}
         className="lg:w-80 flex-shrink-0"
       >
-        <div className="bg-white rounded-2xl shadow-lg border border-neutral-200/50 overflow-hidden">
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl border border-white/20 shadow-lg overflow-hidden">
           <div className="p-6 bg-gradient-to-r from-primary-600 to-secondary-600">
             <h2 className="text-xl font-bold text-white mb-2">Settings</h2>
             <p className="text-primary-100 text-sm">Configure your admin panel</p>
@@ -81,10 +51,10 @@ const SettingsLayout = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.4 }}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full text-left p-4 rounded-xl mb-2 transition-all duration-300 group ${
+                className={`w-full text-left p-4 rounded-2xl mb-2 transition-all duration-300 group ${
                   activeTab === tab.id 
                     ? 'bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 shadow-md' 
-                    : 'hover:bg-neutral-50 border border-transparent'
+                    : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
                 <div className="flex items-start space-x-3">
@@ -94,7 +64,7 @@ const SettingsLayout = () => {
                     className={`mt-0.5 ${
                       activeTab === tab.id 
                         ? 'text-primary-600' 
-                        : 'text-neutral-400 group-hover:text-primary-500'
+                        : 'text-gray-400 group-hover:text-primary-500'
                     }`}
                   >
                     <tab.icon className="w-5 h-5" />
@@ -103,14 +73,14 @@ const SettingsLayout = () => {
                     <h3 className={`font-semibold text-sm mb-1 ${
                       activeTab === tab.id 
                         ? 'text-primary-800' 
-                        : 'text-neutral-700 group-hover:text-neutral-900'
+                        : 'text-gray-700 group-hover:text-gray-900'
                     }`}>
                       {tab.label}
                     </h3>
                     <p className={`text-xs ${
                       activeTab === tab.id 
                         ? 'text-primary-600' 
-                        : 'text-neutral-500 group-hover:text-neutral-600'
+                        : 'text-gray-500 group-hover:text-gray-600'
                     }`}>
                       {tab.description}
                     </p>

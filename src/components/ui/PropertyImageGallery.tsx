@@ -9,7 +9,6 @@ import {
   ChevronRight, 
   Grid3X3,
   ZoomIn,
-  Download,
   Share2,
   Check,
   ImageIcon
@@ -140,24 +139,6 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
       } catch (error) {
         console.error('Failed to copy to clipboard:', error);
       }
-    }
-  }, [safeImages, currentImageIndex, title]);
-
-  const handleDownload = useCallback(async () => {
-    const currentImageUrl = safeImages[currentImageIndex];
-    try {
-      const response = await fetch(currentImageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${title.replace(/\s+/g, '-').toLowerCase()}-image-${currentImageIndex + 1}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download image:', error);
     }
   }, [safeImages, currentImageIndex, title]);
 
@@ -308,7 +289,7 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
                   e.stopPropagation();
                   openModal(0);
                 }}
-                className="bg-white/95 backdrop-blur-sm text-gray-900 px-4 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2"
+                className="bg-white/95 backdrop-blur-sm text-gray-900 px-4 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 cursor-pointer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -348,7 +329,7 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
                 <div className="flex items-center gap-4">
                   <motion.button
                     onClick={closeModal}
-                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                   >
@@ -367,7 +348,7 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
                 <div className="flex items-center gap-2">
                   <motion.button
                     onClick={handleShare}
-                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     title="Share image"
@@ -377,15 +358,6 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
                     ) : (
                       <Share2 className="w-5 h-5 text-white" />
                     )}
-                  </motion.button>
-                  <motion.button
-                    onClick={handleDownload}
-                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    title="Download image"
-                  >
-                    <Download className="w-5 h-5 text-white" />
                   </motion.button>
                   {/* Mobile: Show current image counter */}
                   <div className="md:hidden ml-2 px-3 py-1 bg-black/20 rounded-full">
@@ -437,7 +409,7 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
               <>
                 <motion.button
                   onClick={prevImage}
-                  className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full transition-all duration-200 group"
+                  className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full transition-all duration-200 group cursor-pointer"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   initial={{ opacity: 0, x: -20 }}
@@ -450,7 +422,7 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
 
                 <motion.button
                   onClick={nextImage}
-                  className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full transition-all duration-200 group"
+                  className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full transition-all duration-200 group cursor-pointer"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   initial={{ opacity: 0, x: 20 }}
@@ -471,7 +443,7 @@ export const PropertyImageGallery: React.FC<PropertyImageGalleryProps> = ({
                     <motion.button
                       key={index}
                       onClick={() => goToImage(index)}
-                      className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all duration-200 ${
+                      className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all duration-200 cursor-pointer ${
                         index === currentImageIndex 
                           ? 'border-white shadow-lg' 
                           : 'border-transparent hover:border-white/50'

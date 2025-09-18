@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Users, 
@@ -9,69 +9,45 @@ import {
   Trash2, 
   Shield, 
   Mail,
-  Phone,
   Calendar,
   Search,
   Filter,
-  Eye,
-  EyeOff,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
+import { firestoreUserService, FirestoreUser, CreateFirestoreUserData, UpdateFirestoreUserData } from '@/lib/firestoreUserService';
+import FirestoreUserForm from './FirestoreUserForm';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: 'admin' | 'manager' | 'staff';
-  status: 'active' | 'inactive';
-  lastLogin: string;
-  createdAt: string;
-  permissions: string[];
+// Define interfaces for timestamp handling
+interface FirestoreTimestamp {
+  seconds: number;
+  nanoseconds?: number;
+  toDate(): Date;
+}
+
+interface SerializedTimestamp {
+  _seconds: number;
+  _nanoseconds?: number;
+  seconds?: string;
+}
+
+interface FirestoreUserWithTimestamps extends Omit<FirestoreUser, 'createdAt' | 'lastLogin'> {
+  createdAt: string | Date | FirestoreTimestamp | SerializedTimestamp;
+  lastLogin?: string | Date | FirestoreTimestamp | SerializedTimestamp;
 }
 
 const UserManagement = () => {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      name: 'John Admin',
-      email: 'john@zionpropertycare.com',
-      phone: '+94 77 123 4567',
-      role: 'admin',
-      status: 'active',
-      lastLogin: '2024-08-09 10:30 AM',
-      createdAt: '2024-01-15',
-      permissions: ['all']
-    },
-    {
-      id: '2',
-      name: 'Sarah Manager',
-      email: 'sarah@zionpropertycare.com',
-      phone: '+94 77 234 5678',
-      role: 'manager',
-      status: 'active',
-      lastLogin: '2024-08-08 4:20 PM',
-      createdAt: '2024-02-20',
-      permissions: ['properties', 'bookings', 'reports']
-    },
-    {
-      id: '3',
-      name: 'Mike Staff',
-      email: 'mike@zionpropertycare.com',
-      phone: '+94 77 345 6789',
-      role: 'staff',
-      status: 'inactive',
-      lastLogin: '2024-08-05 2:15 PM',
-      createdAt: '2024-03-10',
-      permissions: ['bookings', 'guests']
-    }
-  ]);
-
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [users, setUsers] = useState<FirestoreUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<FirestoreUser | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'name' | 'role' | 'createdAt'>('name');
@@ -79,82 +55,117 @@ const UserManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
-    role: 'staff' as 'admin' | 'manager' | 'staff',
-    permissions: [] as string[]
-  });
+  const [showAlert, setShowAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  // Load users on component mount
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
-  const rolePermissions = {
-    admin: ['all'],
-    manager: ['properties', 'bookings', 'reports', 'guests', 'maintenance'],
-    staff: ['bookings', 'guests']
+  const loadUsers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await firestoreUserService.getAllUsers();
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setUsers(result.users);
+      }
+    } catch (err) {
+      setError('Failed to load users');
+      console.error('Error loading users:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const allPermissions = [
-    'properties', 'bookings', 'guests', 'reports', 'maintenance', 'settings', 'users'
-  ];
+  const displayAlert = (type: 'success' | 'error', message: string) => {
+    setShowAlert({ type, message });
+    setTimeout(() => setShowAlert(null), 5000);
+  };
 
-  const handleAddUser = async () => {
-    if (newUser.password !== newUser.confirmPassword) {
-      alert('Passwords do not match!');
-      return;
+  const handleCreateUser = async (userData: CreateFirestoreUserData) => {
+    setFormLoading(true);
+    try {
+      const result = await firestoreUserService.createUser(userData);
+      if (result.error) {
+        displayAlert('error', result.error);
+      } else {
+        displayAlert('success', 'User created successfully');
+        setShowUserForm(false);
+        await loadUsers(); // Refresh users list
+      }
+    } catch (error) {
+      displayAlert('error', 'Failed to create user');
+      console.error('Error creating user:', error);
+    } finally {
+      setFormLoading(false);
     }
+  };
 
-    setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+  const handleUpdateUser = async (userData: UpdateFirestoreUserData) => {
+    if (!editingUser) return;
     
-    const user: User = {
-      id: String(users.length + 1),
-      name: newUser.name,
-      email: newUser.email,
-      phone: newUser.phone,
-      role: newUser.role,
-      status: 'active',
-      lastLogin: 'Never',
-      createdAt: new Date().toISOString().split('T')[0],
-      permissions: newUser.permissions.length > 0 ? newUser.permissions : rolePermissions[newUser.role]
-    };
-
-    setUsers(prev => [...prev, user]);
-    setNewUser({
-      name: '',
-      email: '',
-      phone: '',
-      password: '',
-      confirmPassword: '',
-      role: 'staff',
-      permissions: []
-    });
-    setShowAddUserModal(false);
-    setIsSaving(false);
-  };
-
-  const handleEditUser = (user: User) => {
-    // TODO: Implement edit user modal functionality
-    console.log('Edit user:', user);
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(prev => prev.filter(user => user.id !== userId));
+    setFormLoading(true);
+    try {
+      const result = await firestoreUserService.updateUser(editingUser.uid, userData);
+      if (result.error) {
+        displayAlert('error', result.error);
+      } else {
+        displayAlert('success', 'User updated successfully');
+        setShowUserForm(false);
+        setEditingUser(null);
+        await loadUsers(); // Refresh users list
+      }
+    } catch (error) {
+      displayAlert('error', 'Failed to update user');
+      console.error('Error updating user:', error);
+    } finally {
+      setFormLoading(false);
     }
   };
 
-  const handleSelectUser = (userId: string) => {
+  const handleSaveUser = async (userData: CreateFirestoreUserData | UpdateFirestoreUserData) => {
+    if (editingUser) {
+      await handleUpdateUser(userData as UpdateFirestoreUserData);
+    } else {
+      await handleCreateUser(userData as CreateFirestoreUserData);
+    }
+  };
+
+  const handleAddUser = () => {
+    setEditingUser(null);
+    setShowUserForm(true);
+  };
+
+  const handleEditUser = (user: FirestoreUser) => {
+    setEditingUser(user);
+    setShowUserForm(true);
+  };
+
+  const handleDeleteUser = async (uid: string) => {
+    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      try {
+        const result = await firestoreUserService.deleteUser(uid);
+        if (result.error) {
+          displayAlert('error', result.error);
+        } else {
+          displayAlert('success', 'User deleted successfully');
+          await loadUsers(); // Refresh users list
+        }
+      } catch (error) {
+        displayAlert('error', 'Failed to delete user');
+        console.error('Error deleting user:', error);
+      }
+    }
+  };
+
+  const handleSelectUser = (uid: string) => {
     setSelectedUsers(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+      prev.includes(uid) 
+        ? prev.filter(id => id !== uid)
+        : [...prev, uid]
     );
   };
 
@@ -162,34 +173,111 @@ const UserManagement = () => {
     if (selectedUsers.length === paginatedUsers.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(paginatedUsers.map(user => user.id));
+      setSelectedUsers(paginatedUsers.map(user => user.uid));
     }
   };
 
-  const handleBulkDelete = () => {
-    const nonAdminSelected = selectedUsers.filter(id => {
-      const user = users.find(u => u.id === id);
-      return user?.role !== 'admin';
+  const handleBulkDelete = async () => {
+    const nonAdminSelected = selectedUsers.filter(uid => {
+      const user = users.find(u => u.uid === uid);
+      return !user?.isAdmin;
     });
     
     if (nonAdminSelected.length === 0) {
-      alert('Cannot delete admin users!');
+      displayAlert('error', 'Cannot delete admin users!');
       return;
     }
     
-    if (window.confirm(`Are you sure you want to delete ${nonAdminSelected.length} user(s)?`)) {
-      setUsers(prev => prev.filter(user => !nonAdminSelected.includes(user.id)));
-      setSelectedUsers([]);
+    if (window.confirm(`Are you sure you want to delete ${nonAdminSelected.length} user(s)? This action cannot be undone.`)) {
+      try {
+        const result = await firestoreUserService.deleteUsers(nonAdminSelected);
+        if (result.error) {
+          displayAlert('error', result.error);
+        } else {
+          displayAlert('success', `${nonAdminSelected.length} user(s) deleted successfully`);
+          setSelectedUsers([]);
+          await loadUsers(); // Refresh users list
+        }
+      } catch (error) {
+        displayAlert('error', 'Failed to delete users');
+        console.error('Error deleting users:', error);
+      }
     }
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
+    const name = user.name || user.email || '';
+    const email = user.email || '';
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         email.toLowerCase().includes(searchTerm.toLowerCase());
+    const userRole = user.role;
+    const matchesRole = filterRole === 'all' || userRole === filterRole;
     
     return matchesSearch && matchesRole;
   });
+
+  // Convert various Firebase/Firestore timestamp shapes to a JS Date
+  const toDateSafe = (timestamp: string | Date | FirestoreTimestamp | SerializedTimestamp | number | null | undefined): Date | null => {
+    if (!timestamp) return null;
+    // Already a Date
+    if (timestamp instanceof Date) return isNaN(timestamp.getTime()) ? null : timestamp;
+    // Firestore Timestamp (client SDK)
+    if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+      const d = timestamp.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // Firestore Timestamp-like object
+    if (timestamp && typeof timestamp === 'object') {
+      // { seconds, nanoseconds }
+      if ('seconds' in timestamp && typeof timestamp.seconds === 'number') {
+        const nanoseconds = 'nanoseconds' in timestamp && typeof timestamp.nanoseconds === 'number' ? timestamp.nanoseconds : 0;
+        const ms = timestamp.seconds * 1000 + nanoseconds / 1_000_000;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      // { _seconds, _nanoseconds } (serialized)
+      if ('_seconds' in timestamp && typeof timestamp._seconds === 'number') {
+        const nanoseconds = '_nanoseconds' in timestamp && typeof timestamp._nanoseconds === 'number' ? timestamp._nanoseconds : 0;
+        const ms = timestamp._seconds * 1000 + nanoseconds / 1_000_000;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      // { seconds: string }
+      if ('seconds' in timestamp && typeof timestamp.seconds === 'string') {
+        const num = Number(timestamp.seconds);
+        if (!Number.isNaN(num)) {
+          const d = new Date(num * 1000);
+          return isNaN(d.getTime()) ? null : d;
+        }
+      }
+    }
+    // ISO/string
+    if (typeof timestamp === 'string') {
+      const d = new Date(timestamp);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // Epoch ms
+    if (typeof timestamp === 'number') {
+      const d = new Date(timestamp);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  };
+
+  // Format like: 2025-8-25 3:40:22 AM
+  const formatPrettyWithTZ = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1; // 0-based
+    const day = date.getDate();
+    let hour = date.getHours();
+    const minute = date.getMinutes();
+    const second = date.getSeconds();
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    // No leading zeros for month/day/hour
+    return `${year}-${month}-${day} ${hour}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')} ${ampm}`;
+  };
 
   // Sort users
   const sortedUsers = [...filteredUsers].sort((a, b) => {
@@ -198,20 +286,24 @@ const UserManagement = () => {
 
     switch (sortBy) {
       case 'name':
-        aValue = a.name.toLowerCase();
-        bValue = b.name.toLowerCase();
+        aValue = (a.name || a.email || '').toLowerCase();
+        bValue = (b.name || b.email || '').toLowerCase();
         break;
       case 'role':
         aValue = a.role;
         bValue = b.role;
         break;
       case 'createdAt':
-        aValue = new Date(a.createdAt).getTime();
-        bValue = new Date(b.createdAt).getTime();
+        {
+          const ad = toDateSafe((a as FirestoreUserWithTimestamps).createdAt);
+          const bd = toDateSafe((b as FirestoreUserWithTimestamps).createdAt);
+          aValue = ad ? ad.getTime() : 0;
+          bValue = bd ? bd.getTime() : 0;
+        }
         break;
       default:
-        aValue = a.name.toLowerCase();
-        bValue = b.name.toLowerCase();
+        aValue = (a.name || a.email || '').toLowerCase();
+        bValue = (b.name || b.email || '').toLowerCase();
     }
 
     if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
@@ -243,20 +335,59 @@ const UserManagement = () => {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800';
-      case 'manager': return 'bg-blue-100 text-blue-800';
-      case 'staff': return 'bg-green-100 text-green-800';
+      case 'user': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header with Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-lg border border-neutral-200/50 overflow-hidden"
-      >
+      {/* Loading State */}
+      {loading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center p-12"
+        >
+          <div className="flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <span className="text-lg text-neutral-600">Loading users...</span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-50 border border-red-200 rounded-xl p-6"
+        >
+          <div className="flex items-center space-x-3">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+            <div>
+              <h3 className="text-lg font-semibold text-red-800">Error Loading Users</h3>
+              <p className="text-red-600">{error}</p>
+              <button
+                onClick={loadUsers}
+                className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Main Content */}
+      {!loading && !error && (
+        <>
+          {/* Header with Actions */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-lg border border-neutral-200/50 overflow-hidden"
+          >
         <div className="p-6 bg-gradient-to-r from-primary-600 to-primary-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -266,7 +397,7 @@ const UserManagement = () => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowAddUserModal(true)}
+              onClick={handleAddUser}
               className="flex items-center space-x-2 px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 text-white rounded-lg hover:bg-white/30 transition-all duration-300"
             >
               <UserPlus className="w-4 h-4" />
@@ -298,8 +429,7 @@ const UserManagement = () => {
               >
                 <option value="all">All Roles</option>
                 <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
-                <option value="staff">Staff</option>
+                <option value="user">User</option>
               </select>
             </div>
           </div>
@@ -322,11 +452,11 @@ const UserManagement = () => {
                 <div className="text-sm text-neutral-600">Total Users</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{users.filter(u => u.status === 'active').length}</div>
+                <div className="text-2xl font-bold text-green-600">{users.length}</div>
                 <div className="text-sm text-neutral-600">Active Users</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{users.filter(u => u.role === 'admin').length}</div>
+                <div className="text-2xl font-bold text-blue-600">{users.filter(u => u.isAdmin).length}</div>
                 <div className="text-sm text-neutral-600">Administrators</div>
               </div>
             </div>
@@ -408,6 +538,7 @@ const UserManagement = () => {
                     {getSortIcon('createdAt')}
                   </button>
                 </th>
+                <th className="text-left px-6 py-4 font-semibold text-neutral-800">Last Login</th>
                 <th className="text-center px-6 py-4 font-semibold text-neutral-800">Actions</th>
               </tr>
             </thead>
@@ -425,7 +556,7 @@ const UserManagement = () => {
               ) : (
                 paginatedUsers.map((user, index) => (
                   <motion.tr
-                    key={user.id}
+                    key={user.uid}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
@@ -434,8 +565,8 @@ const UserManagement = () => {
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
-                        checked={selectedUsers.includes(user.id)}
-                        onChange={() => handleSelectUser(user.id)}
+                        checked={selectedUsers.includes(user.uid)}
+                        onChange={() => handleSelectUser(user.uid)}
                         className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
                       />
                     </td>
@@ -444,20 +575,16 @@ const UserManagement = () => {
                         <div className="relative">
                           <div className="w-12 h-12 bg-gradient-to-br from-primary-100 to-secondary-100 rounded-xl flex items-center justify-center shadow-sm">
                             <span className="text-primary-700 font-bold text-sm">
-                              {user.name.split(' ').map(n => n[0]).join('')}
+                              {(user.name || user.email || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                             </span>
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-neutral-900 truncate">{user.name}</div>
+                          <div className="font-semibold text-neutral-900 truncate">{user.name || user.email}</div>
                           <div className="text-sm text-neutral-600 space-y-1">
                             <div className="flex items-center space-x-2">
                               <Mail className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">{user.email}</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Phone className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{user.phone}</span>
                             </div>
                           </div>
                         </div>
@@ -470,9 +597,7 @@ const UserManagement = () => {
                           {user.role}
                         </span>
                         <div className="text-xs text-neutral-500">
-                          {user.permissions.includes('all') 
-                            ? 'All permissions' 
-                            : `${user.permissions.length} permissions`}
+                          {user.isAdmin ? 'Admin privileges' : 'Standard user'}
                         </div>
                       </div>
                     </td>
@@ -480,12 +605,40 @@ const UserManagement = () => {
                       <div className="flex items-center space-x-2 text-sm text-neutral-600">
                         <Calendar className="w-4 h-4 flex-shrink-0" />
                         <div>
-                          <div className="font-medium text-neutral-900">
-                            {new Date(user.createdAt).toLocaleDateString()}
-                          </div>
-                          <div className="text-xs text-neutral-500">
-                            {Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24))} days ago
-                          </div>
+                          {(() => {
+                            const d = toDateSafe((user as FirestoreUserWithTimestamps).createdAt);
+                            if (!d) {
+                              return (
+                                <>
+                                  <div className="font-medium text-neutral-500">Unknown</div>
+                                  <div className="text-xs text-neutral-400">Invalid date</div>
+                                </>
+                              );
+                            }
+                            const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
+                            return (
+                              <>
+                                <div className="font-medium text-neutral-900">
+                                  {formatPrettyWithTZ(d)}
+                                </div>
+                                <div className="text-xs text-neutral-500">{days} days ago</div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2 text-sm text-neutral-600">
+                        <Calendar className="w-4 h-4 flex-shrink-0" />
+                        <div>
+                          {(() => {
+                            const d = toDateSafe((user as FirestoreUserWithTimestamps).lastLogin);
+                            if (!d) {
+                              return <span className="font-medium text-neutral-500">Never</span>;
+                            }
+                            return <span className="font-medium text-neutral-900">{formatPrettyWithTZ(d)}</span>;
+                          })()}
                         </div>
                       </div>
                     </td>
@@ -500,18 +653,18 @@ const UserManagement = () => {
                         >
                           <Edit3 className="w-4 h-4" />
                         </motion.button>
-                        {user.role !== 'admin' && (
+                        {!user.isAdmin && (
                           <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => handleDeleteUser(user.uid)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete User"
                           >
                             <Trash2 className="w-4 h-4" />
                           </motion.button>
                         )}
-                        {user.role === 'admin' && (
+                        {user.isAdmin && (
                           <div className="p-2 text-neutral-300" title="Cannot delete admin">
                             <Shield className="w-4 h-4" />
                           </div>
@@ -591,186 +744,42 @@ const UserManagement = () => {
         )}
       </motion.div>
 
-      {/* Add User Modal */}
-      {showAddUserModal && (
+      {/* Alert Messages */}
+      {showAlert && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -50 }}
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+            showAlert.type === 'success' 
+              ? 'bg-green-100 border border-green-400 text-green-700' 
+              : 'bg-red-100 border border-red-400 text-red-700'
+          }`}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6 border-b border-neutral-200">
-              <h3 className="text-xl font-bold text-neutral-900">Add New User</h3>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.name}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                    placeholder="Enter full name"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                    placeholder="Enter email address"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={newUser.phone}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Role
-                  </label>
-                  <select
-                    value={newUser.role}
-                    onChange={(e) => {
-                      const selectedRole = e.target.value as 'admin' | 'manager' | 'staff';
-                      setNewUser(prev => ({ 
-                        ...prev, 
-                        role: selectedRole,
-                        permissions: rolePermissions[selectedRole]
-                      }));
-                    }}
-                    className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                  >
-                    <option value="staff">Staff</option>
-                    <option value="manager">Manager</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={newUser.password}
-                      onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                      className="w-full px-4 py-3 pr-12 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                      placeholder="Enter password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3.5 text-neutral-400 hover:text-neutral-600"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Confirm Password
-                  </label>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newUser.confirmPassword}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                    placeholder="Confirm password"
-                  />
-                </div>
-              </div>
-
-              {newUser.role !== 'admin' && (
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-3">
-                    Custom Permissions
-                  </label>
-                  <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                    <div className="text-sm text-neutral-600 mb-3">
-                      Default permissions for {newUser.role}: {rolePermissions[newUser.role].join(', ')}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {allPermissions.map(permission => (
-                        <label key={permission} className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={newUser.permissions.includes(permission)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setNewUser(prev => ({
-                                  ...prev,
-                                  permissions: [...prev.permissions, permission]
-                                }));
-                              } else {
-                                setNewUser(prev => ({
-                                  ...prev,
-                                  permissions: prev.permissions.filter(p => p !== permission)
-                                }));
-                              }
-                            }}
-                            className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
-                          />
-                          <span className="text-sm text-neutral-700 capitalize">{permission}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 border-t border-neutral-200 flex justify-end space-x-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowAddUserModal(false)}
-                className="px-6 py-2 text-neutral-600 hover:text-neutral-800 transition-colors"
-              >
-                Cancel
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleAddUser}
-                disabled={isSaving}
-                className="px-6 py-2 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>{isSaving ? 'Creating...' : 'Create User'}</span>
-              </motion.button>
-            </div>
-          </motion.div>
+          <div className="flex items-center space-x-2">
+            {showAlert.type === 'success' ? (
+              <CheckCircle className="w-5 h-5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5" />
+            )}
+            <span>{showAlert.message}</span>
+          </div>
         </motion.div>
+      )}
+
+      {/* User Form Modal */}
+      {showUserForm && (
+        <FirestoreUserForm
+          user={editingUser}
+          onSave={handleSaveUser}
+          onCancel={() => {
+            setShowUserForm(false);
+            setEditingUser(null);
+          }}
+          isLoading={formLoading}
+        />
+      )}
+        </>
       )}
     </div>
   );

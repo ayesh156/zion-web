@@ -1,4 +1,4 @@
-import { Property, properties as defaultProperties } from '../data/properties';
+import { Property, properties as defaultProperties, Booking } from '../data/properties';
 
 // In a real application, this would connect to a database
 // For now, we'll use localStorage to persist changes during the session
@@ -100,5 +100,15 @@ export class PropertyService {
     window.dispatchEvent(new CustomEvent('propertiesUpdated', {
       detail: { properties: this.getProperties() }
     }));
+  }
+
+  // Method to update property bookings
+  static updatePropertyBookings(propertyId: string, bookings: Booking[]): void {
+    const properties = this.getProperties();
+    const updatedProperties = properties.map(p => 
+      p.id === propertyId ? { ...p, bookings } : p
+    );
+    
+    this.saveProperties(updatedProperties);
   }
 }

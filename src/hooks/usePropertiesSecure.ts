@@ -18,7 +18,8 @@ export function usePropertiesSecure() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('Authentication required');
+          window.location.href = '/admin/login';
+          return;
         }
         throw new Error('Failed to fetch properties');
       }

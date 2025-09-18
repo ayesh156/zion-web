@@ -35,6 +35,15 @@ export interface UnifiedReview {
   reviewSourceUrl?: string;
 }
 
+// Booking interface for property reservations
+export interface Booking {
+  id: string;
+  checkIn: string;
+  checkOut: string;
+  guestName?: string;
+  notes?: string;
+}
+
 export interface Property {
   id: string;
   title: string;
@@ -53,7 +62,6 @@ export interface Property {
     defaultPrice: number;
     rules: PricingRule[];
   };
-  rating: number; // Consolidated rating (backward compatibility)
   reviewCount: number; // Total review count (backward compatibility)
   ratings?: RatingSource[]; // Multi-platform ratings (deprecated - use unifiedReviews)
   unifiedReviews?: UnifiedReview[]; // New unified reviews structure
@@ -64,6 +72,18 @@ export interface Property {
   amenities: string[];
   features: string[];
   description: string;
+  // Location content fields
+  locationContent?: {
+    description: string; // Rich description of the location and neighborhood
+    nearbyAttractions: Array<{
+      name: string;
+      distance: string;
+    }>;
+    transportation: Array<{
+      name: string;
+      details: string;
+    }>;
+  };
   reviews?: Array<{
     username: string;
     date: string;
@@ -77,6 +97,7 @@ export interface Property {
     checkOut: string;
     cancellationPrepayment: string;
   };
+  bookings?: Booking[]; // Admin-managed booking dates that are blocked
 }
 
 export const properties: Property[] = [
@@ -95,7 +116,6 @@ export const properties: Property[] = [
       defaultPrice: 100,
       rules: []
     },
-    rating: 4.8,
     reviewCount: 24,
     ratings: [
       {
@@ -155,7 +175,6 @@ export const properties: Property[] = [
       defaultPrice: 75,
       rules: []
     },
-    rating: 4.6,
     reviewCount: 18,
     ratings: [
       {
@@ -256,7 +275,6 @@ export const properties: Property[] = [
       defaultPrice: 125,
       rules: []
     },
-    rating: 4.9,
     reviewCount: 31,
     ratings: [
       {
@@ -316,7 +334,6 @@ export const properties: Property[] = [
       defaultPrice: 175,
       rules: []
     },
-    rating: 4.7,
     reviewCount: 42,
     ratings: [
       {
@@ -376,7 +393,6 @@ export const properties: Property[] = [
       defaultPrice: 150,
       rules: []
     },
-    rating: 4.8,
     reviewCount: 35,
     ratings: [
       {

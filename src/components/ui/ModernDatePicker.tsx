@@ -100,7 +100,7 @@ const ModernDatePicker = ({
 
       days.push(
         <motion.button
-          key={day}
+          key={`day-${day}`}
           type="button"
           whileHover={!isDisabled ? { scale: 1.1 } : undefined}
           whileTap={!isDisabled ? { scale: 0.95 } : undefined}

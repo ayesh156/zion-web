@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getCurrentPrice } from '../../lib/pricingUtils';
+import { calculateAverageRating, getTotalReviewCount } from '@/lib/reviewUtils';
 import { 
   Edit, 
   Trash2, 
@@ -16,8 +17,9 @@ import {
   Mountain, 
   Building2, 
   Waves, 
-  AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Calendar,
+  DollarSign
 } from 'lucide-react';
 import { Property } from '../../data/properties';
 
@@ -25,10 +27,13 @@ interface PropertyTableProps {
   properties: Property[];
   onEdit: (property: Property) => void;
   onDelete: (id: string) => void;
+  onBookingManage?: (property: Property) => void;
+  onPricingManage?: (property: Property) => void;
 }
 
-const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => {
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+const PropertyTable = ({ properties, onEdit, onDelete, onBookingManage, onPricingManage }: PropertyTableProps) => {
+  // Remove deleteConfirm state as it will be handled externally
+  // const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -52,7 +57,6 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
 
   const handleDelete = (id: string) => {
     onDelete(id);
-    setDeleteConfirm(null);
   };
 
   if (properties.length === 0) {
@@ -119,7 +123,12 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                  <span className="text-sm font-medium text-neutral-800">{property.rating}</span>
+                  <span className="text-sm font-medium text-neutral-800">
+                    {calculateAverageRating(property.unifiedReviews || []).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-neutral-500">
+                    ({getTotalReviewCount(property.unifiedReviews || [])})
+                  </span>
                 </div>
               </div>
 
@@ -135,14 +144,32 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
                   >
                     <ExternalLink className="w-4 h-4" />
                   </Link>
+                  {onPricingManage && (
+                    <button
+                      onClick={() => onPricingManage(property)}
+                      className="p-2 text-neutral-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                      title="Manage Special Pricing"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                    </button>
+                  )}
+                  {onBookingManage && (
+                    <button
+                      onClick={() => onBookingManage(property)}
+                      className="p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                      title="Manage Bookings"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onEdit(property)}
-                    className="p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                    className="p-2 text-neutral-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors duration-200"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setDeleteConfirm(property.id)}
+                    onClick={() => onDelete(property.id)}
                     className="p-2 text-neutral-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -162,9 +189,6 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
               <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-800">Property</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-800">Type</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-800">Location</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-800">Details</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-800">Rating</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-800">Price</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-neutral-800">Actions</th>
             </tr>
           </thead>
@@ -209,37 +233,6 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
                 </td>
 
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-4 text-xs text-neutral-600">
-                    <div className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {property.maxGuests}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Bed className="w-3 h-3" />
-                      {property.bedrooms}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Bath className="w-3 h-3" />
-                      {property.bathrooms}
-                    </div>
-                  </div>
-                </td>
-
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-1.5">
-                    <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                    <span className="text-sm font-medium text-neutral-800">{property.rating}</span>
-                    <span className="text-xs text-neutral-500">({property.reviewCount})</span>
-                  </div>
-                </td>
-
-                <td className="px-6 py-4">
-                  <span className="text-sm font-semibold text-neutral-800">
-                    {getCurrentPrice(property).formattedPrice}/night
-                  </span>
-                </td>
-
-                <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
                     <Link
                       href={`/properties/${property.slug}`}
@@ -249,15 +242,33 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
                     >
                       <ExternalLink className="w-4 h-4" />
                     </Link>
+                    {onPricingManage && (
+                      <button
+                        onClick={() => onPricingManage(property)}
+                        className="p-2 text-neutral-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                        title="Manage Special Pricing"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                      </button>
+                    )}
+                    {onBookingManage && (
+                      <button
+                        onClick={() => onBookingManage(property)}
+                        className="p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                        title="Manage Bookings"
+                      >
+                        <Calendar className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onEdit(property)}
-                      className="p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                      className="p-2 text-neutral-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors duration-200"
                       title="Edit Property"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => setDeleteConfirm(property.id)}
+                      onClick={() => onDelete(property.id)}
                       className="p-2 text-neutral-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                       title="Delete Property"
                     >
@@ -271,53 +282,7 @@ const PropertyTable = ({ properties, onEdit, onDelete }: PropertyTableProps) => 
         </table>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {deleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={() => setDeleteConfirm(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
-            >
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-neutral-800">Delete Property</h3>
-                  <p className="text-sm text-neutral-600">This action cannot be undone.</p>
-                </div>
-              </div>
-              <p className="text-neutral-700 mb-6">
-                Are you sure you want to delete this property? All data associated with this property will be permanently removed.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteConfirm(null)}
-                  className="flex-1 px-4 py-2 text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDelete(deleteConfirm)}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"
-                >
-                  Delete
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Delete Confirmation Modal is now handled externally */}
     </div>
   );
 };
