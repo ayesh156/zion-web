@@ -1,5 +1,40 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import ProtectedRoute from '../../components/auth/ProtectedRoute';
+
+export default function AdminDashboard() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Auto-redirect to properties section after login
+    router.replace('/admin/properties');
+  }, [router]);
+
+  // Show loading state while redirecting
+  return (
+    <ProtectedRoute requireAdmin={true}>
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-lg p-8 border border-neutral-200/50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold text-primary-800 mb-2">
+              Redirecting to Properties
+            </h2>
+            <p className="text-neutral-600">
+              Taking you to the property management section...
+            </p>
+          </div>
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
+}
+
+/*
+'use client';
+
 import { motion } from 'framer-motion';
 import { BarChart3, Home, Users, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -13,7 +48,7 @@ export default function AdminDashboard() {
     <ProtectedRoute requireAdmin={true}>
       <AdminLayout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8">
-          {/* Header Section */}
+          * Header Section *
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -29,7 +64,7 @@ export default function AdminDashboard() {
                 </p>
               </div>
 
-              {/* Stats Cards */}
+              * Stats Cards *
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 text-center">
                   <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mx-auto mb-4">
@@ -66,7 +101,7 @@ export default function AdminDashboard() {
             </div>
           </motion.div>
 
-          {/* Quick Actions */}
+          * Quick Actions *
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -115,3 +150,5 @@ export default function AdminDashboard() {
     </ProtectedRoute>
   );
 }
+
+*/

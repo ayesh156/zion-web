@@ -1,98 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyIdToken, isAdminUser } from '@/lib/auth-admin';
-import { getAdminFirestore } from '@/lib/auth-admin';
+import { getAdminFirestore, verifyIdToken, isAdminUser } from '@/lib/auth-admin';
 
-// Verify admin authentication
-async function verifyAdmin(request: NextRequest) {
-  const authToken = request.cookies.get('admin-token')?.value;
-  
-  if (!authToken) {
-    return { authorized: false, error: 'No authentication token' };
-  }
-
+// Helper function to verify admin access using admin-token cookie
+async function verifyAdminAccess(request: NextRequest) {
   try {
-    const verification = await verifyIdToken(authToken);
+    const adminToken = request.cookies.get('admin-token')?.value;
     
-    if (!verification.success || !verification.uid) {
-      return { authorized: false, error: 'Invalid token' };
+    if (!adminToken) {
+      return { authorized: false, error: 'Admin authentication required' };
     }
 
-    const hasAdminAccess = await isAdminUser(verification.uid);
+    // Verify the ID token
+    const verification = await verifyIdToken(adminToken);
     
-    if (!hasAdminAccess) {
+    if (!verification.success || !verification.uid) {
+      return { authorized: false, error: 'Invalid admin token' };
+    }
+
+    // Check if user has admin privileges
+    const isAdmin = await isAdminUser(verification.uid);
+    
+    if (!isAdmin) {
       return { authorized: false, error: 'Admin access required' };
     }
 
-    return { authorized: true, uid: verification.uid };
-  } catch {
-    return { authorized: false, error: 'Token verification failed' };
+    return { authorized: true, uid: verification.uid, email: verification.email };
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    return { authorized: false, error: 'Authentication failed' };
   }
 }
 
-interface RouteParams {
-  params: Promise<{
-    uid: string;
-  }>;
-}
-
-// POST /api/users/firestore/[uid]/update-login - Update user login information
-export async function POST(request: NextRequest, { params }: RouteParams) {
+// PUT - Update lastLogin timestamp for a user
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ uid: string }> }
+) {
   try {
-    const auth = await verifyAdmin(request);
-    if (!auth.authorized) {
+    const verification = await verifyAdminAccess(request);
+    if (!verification.authorized) {
       return NextResponse.json(
-        { error: auth.error },
+        { error: verification.error },
         { status: 401 }
       );
     }
 
     const { uid } = await params;
-    const { lastLogin, loginIP, loginUserAgent } = await request.json();
-
     const db = getAdminFirestore();
-    const userRef = db.collection('users').doc(uid);
-    
+
     // Check if user exists
-    const userDoc = await userRef.get();
+    const userDoc = await db.collection('users').doc(uid).get();
+    
     if (!userDoc.exists) {
       return NextResponse.json(
-        { error: `User ${uid} not found` },
+        { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Get client IP from headers
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const realIP = request.headers.get('x-real-ip');
-    const clientIP = forwardedFor?.split(',')[0] || realIP || 'unknown';
-
-    // Update login information
-    const loginData = {
-      lastLogin: lastLogin || new Date(),
-      loginIP: loginIP || clientIP,
-      loginUserAgent: loginUserAgent || request.headers.get('user-agent') || 'unknown',
+    // Update lastLogin timestamp
+    await db.collection('users').doc(uid).update({
+      lastLogin: new Date(),
       updatedAt: new Date(),
-      updatedBy: auth.uid
-    };
-
-    await userRef.update(loginData);
-
-    // Get updated user data
-    const updatedUserDoc = await userRef.get();
-    const userData = {
-      id: updatedUserDoc.id,
-      ...updatedUserDoc.data()
-    };
+    });
 
     return NextResponse.json({ 
       success: true,
-      message: 'Login information updated successfully',
-      user: userData
+      message: 'Last login updated successfully',
+      lastLogin: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('Error updating login information:', error);
+  } catch (error: unknown) {
+    console.error('Error updating last login:', error);
+    
     return NextResponse.json(
-      { error: 'Failed to update login information' },
+      { error: 'Failed to update last login' },
       { status: 500 }
     );
   }

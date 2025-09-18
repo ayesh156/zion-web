@@ -1,125 +1,151 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyIdToken, isAdminUser } from '@/lib/auth-admin';
-import { getAdminFirestore } from '@/lib/auth-admin';
+import { getAdminAuth, getAdminFirestore, verifyIdToken, isAdminUser } from '@/lib/auth-admin';
 
-// Verify admin authentication
-async function verifyAdmin(request: NextRequest) {
-  const authToken = request.cookies.get('admin-token')?.value;
-  
-  if (!authToken) {
-    return { authorized: false, error: 'No authentication token' };
-  }
-
+// Helper function to verify admin access using admin-token cookie
+async function verifyAdminAccess(request: NextRequest) {
   try {
-    const verification = await verifyIdToken(authToken);
+    const adminToken = request.cookies.get('admin-token')?.value;
     
-    if (!verification.success || !verification.uid) {
-      return { authorized: false, error: 'Invalid token' };
+    if (!adminToken) {
+      return { authorized: false, error: 'Admin authentication required' };
     }
 
-    const hasAdminAccess = await isAdminUser(verification.uid);
+    // Verify the ID token
+    const verification = await verifyIdToken(adminToken);
     
-    if (!hasAdminAccess) {
+    if (!verification.success || !verification.uid) {
+      return { authorized: false, error: 'Invalid admin token' };
+    }
+
+    // Check if user has admin privileges
+    const isAdmin = await isAdminUser(verification.uid);
+    
+    if (!isAdmin) {
       return { authorized: false, error: 'Admin access required' };
     }
 
-    return { authorized: true, uid: verification.uid };
-  } catch {
-    return { authorized: false, error: 'Token verification failed' };
-  }
-}
-
-interface RouteParams {
-  params: Promise<{
-    uid: string;
-  }>;
-}
-
-// GET /api/users/[uid] - Get specific user
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const auth = await verifyAdmin(request);
-    if (!auth.authorized) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: 401 }
-      );
-    }
-
-    const { uid } = await params;
-    const db = getAdminFirestore();
-    
-    const userDoc = await db.collection('users').doc(uid).get();
-    
-    if (!userDoc.exists) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const userData = {
-      id: userDoc.id,
-      ...userDoc.data()
-    };
-
-    return NextResponse.json({ user: userData });
+    return { authorized: true, uid: verification.uid, email: verification.email };
   } catch (error) {
-    console.error('Error fetching user:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch user' },
-      { status: 500 }
-    );
+    console.error('Admin verification error:', error);
+    return { authorized: false, error: 'Authentication failed' };
   }
 }
 
-// PUT /api/users/[uid] - Update specific user
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+// PUT - Update user
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ uid: string }> }
+) {
   try {
-    const auth = await verifyAdmin(request);
-    if (!auth.authorized) {
+    const verification = await verifyAdminAccess(request);
+    if (!verification.authorized) {
       return NextResponse.json(
-        { error: auth.error },
+        { error: verification.error },
         { status: 401 }
       );
     }
 
     const { uid } = await params;
-    const updateData = await request.json();
-    
+    const body = await request.json();
+    const { displayName, phoneNumber, disabled, role, permissions } = body;
+
+    const adminAuth = getAdminAuth();
     const db = getAdminFirestore();
-    
-    // Check if user exists
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
+
+    // Prevent admins from disabling themselves
+    if (disabled && verification.uid === uid) {
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        { error: 'You cannot disable your own account' },
+        { status: 400 }
       );
     }
 
-    // Update user with timestamp
-    const updatedData = {
-      ...updateData,
+    // Update user in Firebase Auth
+    const updateData: {
+      displayName?: string;
+      phoneNumber?: string | null;
+      disabled?: boolean;
+    } = {};
+    if (displayName !== undefined) updateData.displayName = displayName;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (disabled !== undefined) updateData.disabled = disabled;
+
+    if (Object.keys(updateData).length > 0) {
+      await adminAuth.updateUser(uid, updateData);
+    }
+
+    // Update custom claims if role or permissions changed
+    if (role !== undefined || permissions !== undefined) {
+      const userRecord = await adminAuth.getUser(uid);
+      const currentClaims = userRecord.customClaims || {};
+      
+      const newClaims = {
+        ...currentClaims,
+        ...(role !== undefined && { role }),
+        ...(permissions !== undefined && { permissions }),
+        ...(role === 'admin' && { admin: true }),
+        ...(role !== 'admin' && currentClaims.admin && { admin: false }),
+      };
+
+      await adminAuth.setCustomUserClaims(uid, newClaims);
+    }
+
+    // Update user data in Firestore
+    const firestoreUpdateData: {
+      updatedAt: Date;
+      updatedBy?: string;
+      displayName?: string;
+      phoneNumber?: string | null;
+      role?: string;
+      isAdmin?: boolean;
+      permissions?: string[];
+    } = {
       updatedAt: new Date(),
-      updatedBy: auth.uid
+      ...(verification.uid && { updatedBy: verification.uid }),
     };
 
-    await db.collection('users').doc(uid).update(updatedData);
-    
-    // Return updated user data
-    const updatedUserDoc = await db.collection('users').doc(uid).get();
-    const userData = {
-      id: updatedUserDoc.id,
-      ...updatedUserDoc.data()
+    if (displayName !== undefined) firestoreUpdateData.displayName = displayName;
+    if (phoneNumber !== undefined) firestoreUpdateData.phoneNumber = phoneNumber;
+    if (role !== undefined) {
+      firestoreUpdateData.role = role;
+      firestoreUpdateData.isAdmin = role === 'admin';
+    }
+    if (permissions !== undefined) firestoreUpdateData.permissions = permissions;
+
+    await db.collection('users').doc(uid).set(firestoreUpdateData, { merge: true });
+
+    // Get updated user record
+    const updatedUserRecord = await adminAuth.getUser(uid);
+    const userDoc = await db.collection('users').doc(uid).get();
+    const userData = userDoc.exists ? userDoc.data() : null;
+
+    const responseUser = {
+      uid: updatedUserRecord.uid,
+      email: updatedUserRecord.email,
+      displayName: updatedUserRecord.displayName || userData?.displayName || null,
+      phoneNumber: updatedUserRecord.phoneNumber || userData?.phoneNumber || null,
+      emailVerified: updatedUserRecord.emailVerified,
+      disabled: updatedUserRecord.disabled,
+      metadata: {
+        creationTime: updatedUserRecord.metadata.creationTime,
+        lastSignInTime: updatedUserRecord.metadata.lastSignInTime || null,
+      },
+      customClaims: updatedUserRecord.customClaims || {},
+      role: userData?.role || 'staff',
+      permissions: userData?.permissions || [],
     };
 
-    return NextResponse.json({ 
-      success: true,
-      user: userData
-    });
-  } catch (error) {
+    return NextResponse.json({ user: responseUser });
+  } catch (error: unknown) {
     console.error('Error updating user:', error);
+    
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/user-not-found') {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to update user' },
       { status: 500 }
@@ -127,38 +153,64 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/users/[uid] - Delete specific user
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+// DELETE - Delete user
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ uid: string }> }
+) {
   try {
-    const auth = await verifyAdmin(request);
-    if (!auth.authorized) {
+    const verification = await verifyAdminAccess(request);
+    if (!verification.authorized) {
       return NextResponse.json(
-        { error: auth.error },
+        { error: verification.error },
         { status: 401 }
       );
     }
 
     const { uid } = await params;
+    const adminAuth = getAdminAuth();
     const db = getAdminFirestore();
+
+    // Prevent admins from deleting themselves
+    if (verification.uid === uid) {
+      return NextResponse.json(
+        { error: 'You cannot delete your own account' },
+        { status: 400 }
+      );
+    }
+
+    // Check if user is admin before deletion
+    const userRecord = await adminAuth.getUser(uid);
+    const isUserAdmin = userRecord.customClaims?.admin === true ||
+                       (userRecord.email && [
+                         'admin@zionpropertycare.com',
+                         'sathira@zionpropertycare.com'
+                       ].includes(userRecord.email));
+
+    if (isUserAdmin) {
+      return NextResponse.json(
+        { error: 'Cannot delete admin users' },
+        { status: 400 }
+      );
+    }
+
+    // Delete user from Firebase Auth
+    await adminAuth.deleteUser(uid);
+
+    // Delete user document from Firestore
+    await db.collection('users').doc(uid).delete();
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    console.error('Error deleting user:', error);
     
-    // Check if user exists
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/user-not-found') {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Delete the user
-    await db.collection('users').doc(uid).delete();
-
-    return NextResponse.json({ 
-      success: true,
-      message: 'User deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting user:', error);
     return NextResponse.json(
       { error: 'Failed to delete user' },
       { status: 500 }

@@ -75,15 +75,22 @@ function LoginForm() {
           Email
         </label>
         <div className="relative">
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400">
-            <User className="w-5 h-5" />
+          <div 
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10 pointer-events-none"
+            style={{ 
+              color: '#374151', 
+              zIndex: 10,
+              pointerEvents: 'none'
+            }}
+          >
+            <User className="w-5 h-5" style={{ color: '#374151' }} />
           </div>
           <input
             type="email"
             value={formData.email}
             onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
             onFocus={() => error && clearError()} // Clear error when user focuses input
-            className="w-full pl-12 pr-4 py-3 bg-white/60 backdrop-blur-sm border border-neutral-200/50 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white/80 transition-all duration-300 shadow-sm"
+            className="w-full pl-12 pr-4 py-3 bg-white/60 backdrop-blur-sm border border-neutral-200/50 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white/80 transition-all duration-300 shadow-sm relative z-1"
             placeholder="Enter your email"
             required
             disabled={isLoading}
@@ -97,15 +104,22 @@ function LoginForm() {
           Password
         </label>
         <div className="relative">
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400">
-            <Lock className="w-5 h-5" />
+          <div 
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10 pointer-events-none"
+            style={{ 
+              color: '#374151', 
+              zIndex: 10,
+              pointerEvents: 'none'
+            }}
+          >
+            <Lock className="w-5 h-5" style={{ color: '#374151' }} />
           </div>
           <input
             type={showPassword ? 'text' : 'password'}
             value={formData.password}
             onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
             onFocus={() => error && clearError()} // Clear error when user focuses input
-            className="w-full pl-12 pr-12 py-3 bg-white/60 backdrop-blur-sm border border-neutral-200/50 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white/80 transition-all duration-300 shadow-sm"
+            className="w-full pl-12 pr-12 py-3 bg-white/60 backdrop-blur-sm border border-neutral-200/50 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white/80 transition-all duration-300 shadow-sm relative z-1"
             placeholder="Enter your password"
             required
             disabled={isLoading}
@@ -115,9 +129,13 @@ function LoginForm() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors z-10"
+            style={{ 
+              color: '#374151', 
+              zIndex: 10
+            }}
           >
-            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {showPassword ? <EyeOff className="w-5 h-5" style={{ color: '#374151' }} /> : <Eye className="w-5 h-5" style={{ color: '#374151' }} />}
           </motion.button>
         </div>
       </div>
@@ -138,7 +156,7 @@ function LoginForm() {
             <button
               type="button"
               onClick={clearError}
-              className="text-red-500 hover:text-red-700 transition-colors"
+              className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
               aria-label="Dismiss error"
             >
               ×
@@ -153,7 +171,9 @@ function LoginForm() {
         disabled={isLoading}
         whileHover={!isLoading ? { scale: 1.02 } : {}}
         whileTap={!isLoading ? { scale: 0.98 } : {}}
-        className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-neutral-400 disabled:to-neutral-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className={`w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-neutral-400 disabled:to-neutral-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 ${
+          isLoading ? 'cursor-not-allowed' : 'cursor-pointer'
+        }`}
       >
         {isLoading ? (
           <>
@@ -178,53 +198,7 @@ function LoginForm() {
 export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-primary-50/30 to-secondary-50/30 flex items-center justify-center p-4">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{ 
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-            scale: [1, 1.2, 1],
-            rotate: [0, 90, 0]
-          }}
-          transition={{ 
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute top-1/4 left-1/6 w-32 h-32 bg-primary-500/5 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{ 
-            x: [0, -80, 0],
-            y: [0, 60, 0],
-            scale: [1, 0.8, 1],
-            rotate: [0, -45, 0]
-          }}
-          transition={{ 
-            duration: 25,
-            repeat: Infinity,
-            ease: "linear",
-            delay: 5
-          }}
-          className="absolute bottom-1/4 right-1/6 w-24 h-24 bg-secondary-500/5 rounded-full blur-2xl"
-        />
-        <motion.div
-          animate={{ 
-            x: [0, 60, 0],
-            y: [0, -80, 0],
-            scale: [1, 1.1, 1]
-          }}
-          transition={{ 
-            duration: 18,
-            repeat: Infinity,
-            ease: "linear",
-            delay: 10
-          }}
-          className="absolute top-1/2 right-1/4 w-16 h-16 bg-primary-400/8 rounded-full blur-xl"
-        />
-      </div>
-
+      
       {/* Main Login Container */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -237,10 +211,6 @@ export default function AdminLoginPage() {
           {/* Header with animated background */}
           <div className="relative bg-gradient-to-r from-primary-600/90 via-primary-700/85 to-secondary-600/90 p-8 text-center">
             <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 via-primary-600/10 to-secondary-500/20"></div>
-            
-            {/* Floating particles in header */}
-            <div className="absolute top-2 left-8 w-1 h-1 bg-white/60 rounded-full animate-pulse"></div>
-            <div className="absolute bottom-3 right-12 w-1.5 h-1.5 bg-secondary-200/70 rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
             
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}

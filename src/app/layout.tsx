@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   },
   description: SITE_CONFIG.description,
   keywords: SITE_CONFIG.keywords,
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: SITE_CONFIG.title,
     description: SITE_CONFIG.description,

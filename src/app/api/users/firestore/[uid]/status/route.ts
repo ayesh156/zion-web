@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, verifyIdToken, isAdminUser } from '@/lib/auth-admin';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 // Helper function to verify admin access using admin-token cookie
 async function verifyAdminAccess(request: NextRequest) {
@@ -31,7 +33,7 @@ async function verifyAdminAccess(request: NextRequest) {
   }
 }
 
-// PUT - Toggle user status (enable/disable)
+// PUT - Update user status in Firestore
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ uid: string }> }
@@ -47,41 +49,64 @@ export async function PUT(
 
     const { uid } = await params;
     const body = await request.json();
-    const { disabled } = body;
+    const { status } = body;
 
-    if (typeof disabled !== 'boolean') {
+    // Validate status
+    if (!status || !['active', 'inactive', 'pending'].includes(status)) {
       return NextResponse.json(
-        { error: 'Invalid disabled status provided' },
+        { error: 'Invalid status. Must be one of: active, inactive, pending' },
         { status: 400 }
       );
     }
 
+    // Prevent admins from deactivating themselves
+    if (status === 'inactive' && verification.uid === uid) {
+      return NextResponse.json(
+        { error: 'You cannot deactivate your own account' },
+        { status: 400 }
+      );
+    }
+
+    // Update user status in Firestore
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      status: status,
+      updatedAt: new Date(),
+      lastUpdatedBy: verification.uid
+    });
+
+    // Also update Firebase Auth disabled status based on the status
     const adminAuth = getAdminAuth();
-
-    // Prevent admins from disabling themselves
-    if (disabled && verification.uid === uid) {
-      return NextResponse.json(
-        { error: 'You cannot disable your own account' },
-        { status: 400 }
-      );
+    const disabled = status === 'inactive';
+    
+    try {
+      await adminAuth.updateUser(uid, { disabled });
+    } catch (authError) {
+      console.warn('Could not update Firebase Auth status:', authError);
+      // Continue with Firestore update even if Auth update fails
     }
-
-    // Update user status in Firebase Auth
-    await adminAuth.updateUser(uid, { disabled });
 
     return NextResponse.json({ 
       success: true, 
-      message: disabled ? 'User disabled successfully' : 'User enabled successfully' 
+      message: `User status updated to ${status} successfully` 
     });
 
   } catch (error: unknown) {
     console.error('Error updating user status:', error);
     
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/user-not-found') {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    if (error && typeof error === 'object' && 'code' in error) {
+      if (error.code === 'auth/user-not-found') {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+      if (error.code === 'not-found') {
+        return NextResponse.json(
+          { error: 'User document not found in Firestore' },
+          { status: 404 }
+        );
+      }
     }
 
     return NextResponse.json(

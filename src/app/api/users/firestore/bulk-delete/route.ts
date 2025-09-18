@@ -1,99 +1,198 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyIdToken, isAdminUser } from '@/lib/auth-admin';
-import { getAdminFirestore } from '@/lib/auth-admin';
+import { getAdminFirestore, getAdminAuth, verifyIdToken, isAdminUser, UserDocument } from '@/lib/auth-admin';
 
-// Verify admin authentication
-async function verifyAdmin(request: NextRequest) {
-  const authToken = request.cookies.get('admin-token')?.value;
-  
-  if (!authToken) {
-    return { authorized: false, error: 'No authentication token' };
-  }
-
+// Helper function to verify admin access using admin-token cookie
+async function verifyAdminAccess(request: NextRequest) {
   try {
-    const verification = await verifyIdToken(authToken);
+    const adminToken = request.cookies.get('admin-token')?.value;
     
-    if (!verification.success || !verification.uid) {
-      return { authorized: false, error: 'Invalid token' };
+    if (!adminToken) {
+      return { authorized: false, error: 'Admin authentication required' };
     }
 
-    const hasAdminAccess = await isAdminUser(verification.uid);
+    // Verify the ID token
+    const verification = await verifyIdToken(adminToken);
     
-    if (!hasAdminAccess) {
+    if (!verification.success || !verification.uid) {
+      return { authorized: false, error: 'Invalid admin token' };
+    }
+
+    // Check if user has admin privileges
+    const isAdmin = await isAdminUser(verification.uid);
+    
+    if (!isAdmin) {
       return { authorized: false, error: 'Admin access required' };
     }
 
-    return { authorized: true, uid: verification.uid };
-  } catch {
-    return { authorized: false, error: 'Token verification failed' };
+    return { authorized: true, uid: verification.uid, email: verification.email };
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    return { authorized: false, error: 'Authentication failed' };
   }
 }
 
-// DELETE /api/users/firestore/bulk-delete - Bulk delete documents from Firestore
-export async function DELETE(request: NextRequest) {
+// POST - Bulk delete users from both Firebase Auth and Firestore
+export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyAdmin(request);
-    if (!auth.authorized) {
+    const verification = await verifyAdminAccess(request);
+    if (!verification.authorized) {
       return NextResponse.json(
-        { error: auth.error },
+        { error: verification.error },
         { status: 401 }
       );
     }
 
-    const { collection, documentIds } = await request.json();
-    
-    if (!collection || !documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
-      return NextResponse.json(
-        { error: 'Missing or invalid parameters: collection, documentIds array' },
-        { status: 400 }
-      );
-    }
+    const body = await request.json();
+    const { uids } = body;
 
-    if (documentIds.length > 100) {
+    if (!Array.isArray(uids) || uids.length === 0) {
       return NextResponse.json(
-        { error: 'Cannot delete more than 100 documents at once' },
+        { error: 'Invalid user IDs provided' },
         { status: 400 }
       );
     }
 
     const db = getAdminFirestore();
-    
-    // Process in batches of 500 (Firestore batch limit)
-    const batchSize = 500;
-    const batches = [];
-    
-    for (let i = 0; i < documentIds.length; i += batchSize) {
-      const batch = db.batch();
-      const batchIds = documentIds.slice(i, i + batchSize);
-      
-      for (const docId of batchIds) {
-        const docRef = db.collection(collection).doc(docId);
-        batch.delete(docRef);
-      }
-      
-      batches.push(batch);
+    const auth = getAdminAuth();
+
+    // Filter out the current admin's ID to prevent self-deletion
+    const filteredUids = uids.filter(uid => uid !== verification.uid);
+
+    if (filteredUids.length === 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete your own account' },
+        { status: 400 }
+      );
     }
 
-    // Execute all batches
-    const results = await Promise.allSettled(batches.map(batch => batch.commit()));
-    
-    const successful = results.filter(result => result.status === 'fulfilled').length;
-    const failed = results.filter(result => result.status === 'rejected').length;
+    // Check which users are admins and filter them out
+    const validUidsToDelete: string[] = [];
+    const errors: string[] = [];
 
-    return NextResponse.json({ 
-      success: true,
-      collection,
-      summary: {
-        requested: documentIds.length,
-        successful: successful * batchSize, // Approximate, as we don't track individual docs
-        failed: failed * batchSize,
-        batches: batches.length
+    for (const uid of filteredUids) {
+      try {
+        const userDoc = await db.collection('users').doc(uid).get();
+        
+        if (!userDoc.exists) {
+          errors.push(`User not found in database: ${uid}`);
+          continue;
+        }
+
+        const userData = userDoc.data() as UserDocument;
+        
+        if (userData.isAdmin) {
+          errors.push(`Cannot delete admin user: ${userData.email}`);
+        } else {
+          validUidsToDelete.push(uid);
+        }
+      } catch (error) {
+        console.error(`Error checking user ${uid}:`, error);
+        errors.push(`Error checking user: ${uid}`);
+      }
+    }
+
+    if (validUidsToDelete.length === 0) {
+      return NextResponse.json(
+        { 
+          error: 'No valid users to delete', 
+          details: errors 
+        },
+        { status: 400 }
+      );
+    }
+
+    // Delete users in parallel with proper error handling for both Auth and Firestore
+    const deletePromises = validUidsToDelete.map(async (uid) => {
+      let authDeleteSuccess = false;
+      let firestoreDeleteSuccess = false;
+      let error = '';
+
+      try {
+        // Step 1: Delete from Firebase Auth
+        try {
+          await auth.deleteUser(uid);
+          authDeleteSuccess = true;
+        } catch (authError: any) {
+          if (authError.code === 'auth/user-not-found') {
+            // User doesn't exist in Auth, that's okay
+            authDeleteSuccess = true; // Consider this a success
+          } else {
+            console.error(`Error deleting user ${uid} from Auth:`, authError);
+            error = `Auth deletion failed: ${authError.message}`;
+          }
+        }
+
+        // Step 2: Delete from Firestore (proceed even if auth failed)
+        try {
+          await db.collection('users').doc(uid).delete();
+          firestoreDeleteSuccess = true;
+        } catch (firestoreError: any) {
+          console.error(`Error deleting user ${uid} from Firestore:`, firestoreError);
+          error = error ? `${error}; Firestore deletion failed: ${firestoreError.message}` 
+                       : `Firestore deletion failed: ${firestoreError.message}`;
+        }
+
+        // Determine overall success
+        const success = authDeleteSuccess && firestoreDeleteSuccess;
+
+        return { 
+          uid, 
+          success, 
+          authDeleteSuccess,
+          firestoreDeleteSuccess,
+          error: success ? undefined : error
+        };
+
+      } catch (unexpectedError: any) {
+        console.error(`Unexpected error deleting user ${uid}:`, unexpectedError);
+        return { 
+          uid, 
+          success: false, 
+          authDeleteSuccess,
+          firestoreDeleteSuccess,
+          error: unexpectedError.message || 'Unexpected error occurred'
+        };
       }
     });
+
+    const results = await Promise.all(deletePromises);
+    
+    const successful = results.filter(r => r.success);
+    const failed = results.filter(r => !r.success);
+    const partialFailures = results.filter(r => r.authDeleteSuccess !== r.firestoreDeleteSuccess);
+
+    // Log critical issues for manual cleanup
+    partialFailures.forEach(result => {
+      if (result.authDeleteSuccess && !result.firestoreDeleteSuccess) {
+        console.error(`CRITICAL: User ${result.uid} deleted from Auth but not Firestore. Manual cleanup required.`);
+      }
+    });
+
+    const response = {
+      success: true,
+      deleted: successful.length,
+      failed: failed.length,
+      partialFailures: partialFailures.length,
+      results: results.map(r => ({
+        uid: r.uid,
+        success: r.success,
+        error: r.error
+      })),
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully deleted ${successful.length} user(s)${failed.length > 0 ? `, ${failed.length} failed` : ''}${partialFailures.length > 0 ? `, ${partialFailures.length} partial failures` : ''}`
+    };
+
+    // Add warnings for partial failures
+    if (partialFailures.length > 0) {
+      response.message += '. Some users may require manual cleanup.';
+    }
+
+    return NextResponse.json(response);
+
   } catch (error) {
-    console.error('Error in Firestore bulk delete:', error);
+    console.error('Error bulk deleting users:', error);
     return NextResponse.json(
-      { error: 'Failed to delete documents from Firestore' },
+      { error: 'Failed to delete users' },
       { status: 500 }
     );
   }

@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, Building2, RotateCcw } from 'lucide-react';
 import AdminLayout from '../../../components/admin/AdminLayout';
 import ProtectedRoute from '../../../components/auth/ProtectedRoute';
 import PropertyFormMultiStep from '../../../components/admin/PropertyFormMultiStep';
-import PropertyTable from '../../../components/admin/PropertyTable';
+import PropertyTable from '../../../components/admin/PropertyTableNew';
+import BookingDatesModal from '../../../components/admin/BookingDatesModal';
+import DeleteConfirmationModal from '../../../components/admin/DeleteConfirmationModal';
+import SpecialPricingModal from '../../../components/admin/SpecialPricingModal';
 import { Property } from '../../../data/properties';
 import { usePropertiesSecure } from '../../../hooks/usePropertiesSecure';
 
@@ -16,6 +19,15 @@ export default function AdminPropertiesPage() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  
+  // Modal states
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedPropertyForBooking, setSelectedPropertyForBooking] = useState<Property | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedPropertyForDelete, setSelectedPropertyForDelete] = useState<Property | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [selectedPropertyForPricing, setSelectedPropertyForPricing] = useState<Property | null>(null);
 
   // Filter properties based on search term and type
   const filteredProperties = properties.filter(property => {
@@ -25,12 +37,37 @@ export default function AdminPropertiesPage() {
     return matchesSearch && matchesType;
   });
 
-  const handleDeleteProperty = async (id: string) => {
+  const handleDeleteProperty = (id: string) => {
+    const propertyToDelete = properties.find(p => p.id === id);
+    if (propertyToDelete) {
+      setSelectedPropertyForDelete(propertyToDelete);
+      setShowDeleteModal(true);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedPropertyForDelete) return;
+    
+    setDeleting(true);
     try {
-      await deleteProperty(id);
+      await deleteProperty(selectedPropertyForDelete.id);
+      setShowDeleteModal(false);
+      setSelectedPropertyForDelete(null);
     } catch (error) {
       console.error('Failed to delete property:', error);
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const handleBookingManage = (property: Property) => {
+    setSelectedPropertyForBooking(property);
+    setShowBookingModal(true);
+  };
+
+  const handlePricingManage = (property: Property) => {
+    setSelectedPropertyForPricing(property);
+    setShowPricingModal(true);
   };
 
   const startEdit = (property: Property) => {
@@ -57,7 +94,7 @@ export default function AdminPropertiesPage() {
   return (
     <ProtectedRoute requireAdmin={true}>
       <AdminLayout>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8">
+        <div className="space-y-8">
           {/* Error Display */}
           {error && (
             <motion.div
@@ -85,103 +122,93 @@ export default function AdminPropertiesPage() {
             </motion.div>
           )}
 
-          {/* Header Section */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <div className="bg-white rounded-2xl shadow-lg p-8 border border-neutral-200/50">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-primary-800 mb-2">
-                    Property Management
-                  </h1>
-                  <p className="text-neutral-600">
-                    Manage your property listings with ease
-                  </p>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-4">
-                  {/* Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search properties..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-3 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 w-full sm:w-64"
-                    />
-                  </div>
-
-                  {/* Filter */}
-                  <div className="relative">
-                    <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 w-5 h-5" />
-                    <select
-                      value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                      className="pl-10 pr-4 py-3 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 appearance-none bg-white w-full sm:w-40"
-                    >
-                      <option value="all">All Types</option>
-                      <option value="villa">Villa</option>
-                      <option value="apartment">Apartment</option>
-                      <option value="house">House</option>
-                      <option value="resort">Resort</option>
-                    </select>
-                  </div>
-
-                  {/* Add Property Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowForm(true)}
-                    className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2 justify-center"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add Property
-                  </motion.button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Stats Section */}
+          {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
+            transition={{ duration: 0.6 }}
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
           >
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-neutral-200/50">
-              <div className="text-2xl font-bold text-primary-700 mb-1">
-                {properties.length}
-              </div>
-              <div className="text-neutral-600 text-sm">Total Properties</div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Property Management</h1>
+              <p className="text-gray-600 mt-2">Manage your property listings with ease</p>
             </div>
             
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-neutral-200/50">
-              <div className="text-2xl font-bold text-green-600 mb-1">
-                {properties.filter(p => p.type === 'villa').length}
+            <div className="flex items-center gap-4">
+              {/* Properties Count */}
+              <div className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
+                <Building2 className="w-5 h-5 text-primary-600" />
+                <span className="text-sm font-medium text-gray-700">
+                  {properties.length} {properties.length === 1 ? 'Property' : 'Properties'}
+                </span>
               </div>
-              <div className="text-neutral-600 text-sm">Villas</div>
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowForm(true)}
+                className="flex items-center space-x-2 px-6 py-3 bg-primary-600 text-white rounded-2xl hover:bg-primary-700 transition-all duration-300 shadow-lg cursor-pointer"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Add Property</span>
+              </motion.button>
             </div>
-            
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-neutral-200/50">
-              <div className="text-2xl font-bold text-blue-600 mb-1">
-                {properties.filter(p => p.type === 'apartment').length}
+          </motion.div>
+
+          {/* Search & Filter */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="flex items-center gap-3"
+          >
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search properties..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 text-gray-900 placeholder-gray-500"
+              />
+            </div>
+
+            {/* Type Filter */}
+            <div className="relative">
+              <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="pl-12 pr-10 py-3.5 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 appearance-none cursor-pointer text-gray-900 min-w-[160px]"
+              >
+                <option value="all">All Types</option>
+                <option value="villa">Villa</option>
+                <option value="apartment">Apartment</option>
+                <option value="house">House</option>
+                <option value="resort">Resort</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
-              <div className="text-neutral-600 text-sm">Apartments</div>
             </div>
-            
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-neutral-200/50">
-              <div className="text-2xl font-bold text-orange-600 mb-1">
-                {properties.length > 0 
-                  ? Math.round(properties.reduce((acc, p) => acc + p.rating, 0) / properties.length * 10) / 10
-                  : 0}
-              </div>
-              <div className="text-neutral-600 text-sm">Avg Rating</div>
-            </div>
+
+            {/* Refresh Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                setSearchTerm('');
+                setFilterType('all');
+                clearError();
+              }}
+              className="p-3.5 bg-white border border-gray-200 rounded-2xl hover:bg-primary-50 hover:border-primary-300 hover:text-primary-600 transition-all duration-200 cursor-pointer text-gray-500"
+              title="Clear filters & refresh"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </motion.button>
           </motion.div>
 
           {/* Properties Table */}
@@ -191,15 +218,17 @@ export default function AdminPropertiesPage() {
             transition={{ delay: 0.2 }}
           >
             {loading ? (
-              <div className="bg-white rounded-2xl shadow-lg border border-neutral-200/50 p-12 text-center">
+              <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-12 text-center border border-white/20 shadow-lg">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                <p className="text-neutral-600">Loading properties...</p>
+                <p className="text-gray-600">Loading properties...</p>
               </div>
             ) : (
               <PropertyTable
                 properties={filteredProperties}
                 onEdit={startEdit}
                 onDelete={handleDeleteProperty}
+                onBookingManage={handleBookingManage}
+                onPricingManage={handlePricingManage}
               />
             )}
           </motion.div>
@@ -215,6 +244,76 @@ export default function AdminPropertiesPage() {
               }}
             />
           )}
+
+          {/* Booking Dates Modal */}
+          <BookingDatesModal
+            property={selectedPropertyForBooking}
+            isOpen={showBookingModal}
+            onClose={() => {
+              setShowBookingModal(false);
+              setSelectedPropertyForBooking(null);
+            }}
+            onUpdate={(propertyId, bookings) => {
+              // Handle booking updates if needed
+              console.log('Bookings updated for property:', propertyId, bookings);
+            }}
+          />
+
+          {/* Delete Confirmation Modal */}
+          <DeleteConfirmationModal
+            isOpen={showDeleteModal}
+            onClose={() => {
+              setShowDeleteModal(false);
+              setSelectedPropertyForDelete(null);
+            }}
+            onConfirm={confirmDelete}
+            title="Delete Property"
+            message={selectedPropertyForDelete ? 
+              `Are you sure you want to delete "${selectedPropertyForDelete.title}"? All data associated with this property will be permanently removed.` :
+              "Are you sure you want to delete this property? All data associated with this property will be permanently removed."
+            }
+            loading={deleting}
+          />
+
+          {/* Special Pricing Modal */}
+          <SpecialPricingModal
+            property={selectedPropertyForPricing}
+            isOpen={showPricingModal}
+            onClose={() => {
+              setShowPricingModal(false);
+              setSelectedPropertyForPricing(null);
+            }}
+            onUpdate={async (propertyId, pricingRules) => {
+              try {
+                // Update the property with new pricing rules
+                const propertyToUpdate = properties.find(p => p.id === propertyId);
+                if (!propertyToUpdate) {
+                  throw new Error('Property not found');
+                }
+
+                const updatedProperty = {
+                  ...propertyToUpdate,
+                  pricing: {
+                    ...propertyToUpdate.pricing,
+                    rules: pricingRules
+                  }
+                };
+                
+                console.log('Updating property pricing rules:', {
+                  propertyId,
+                  rulesCount: pricingRules.length,
+                  property: updatedProperty.title
+                });
+                
+                await updateProperty(updatedProperty);
+                
+                console.log('Property pricing rules updated successfully');
+              } catch (error) {
+                console.error('Failed to update property pricing:', error);
+                throw error; // Re-throw to allow modal to handle the error
+              }
+            }}
+          />
         </div>
       </AdminLayout>
     </ProtectedRoute>
