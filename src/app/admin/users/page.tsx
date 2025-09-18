@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Plus, AlertTriangle, CheckCircle } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
@@ -33,11 +33,7 @@ const UsersPage = () => {
   const [filterStatus, setFilterStatus] = useState('all');
 
   // Load users on component mount
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -56,7 +52,11 @@ const UsersPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const showAlert = (type: 'success' | 'error', message: string) => {
     setAlert({ type, message });

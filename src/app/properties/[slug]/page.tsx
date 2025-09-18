@@ -42,7 +42,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { motion } from 'framer-motion';
 import PropertyImageGallery from '../../../components/ui/PropertyImageGallery';
 import PremiumPropertyDatePicker from '../../../components/ui/PremiumPropertyDatePicker';
 import { useProperties } from '../../../hooks/useProperties';
@@ -50,11 +49,11 @@ import { CONTENT_CONFIG, SOCIAL_LINKS, BUSINESS_INFO } from '../../../lib/consta
 import { smartTruncate, needsTruncation } from '../../../lib/contentConfig';
 import { getAmenitiesByIds } from '../../../lib/amenities';
 import { calculateAverageRating, getTotalReviewCount } from '../../../lib/reviewUtils';
-import { calculateDateRangePricing, getCurrencySymbol, getPropertyPriceDisplay, getCurrentPrice } from '../../../lib/pricingUtils';
+import { calculateDateRangePricing, getCurrencySymbol, getPropertyPriceDisplay } from '../../../lib/pricingUtils';
 import {
   ArrowLeft, MessageCircle, Share, Heart, Star, Users,
   Calendar as CalendarIcon, Shield, Wifi, Car, Tv, Waves, Dumbbell, Coffee, ChefHat,
-  ParkingCircle, AirVent, Shirt, Camera, Mountain, Home, Clock, CheckCircle, Key, CreditCard, X, ExternalLink, ThumbsUp, ChevronLeft, ChevronRight,
+  ParkingCircle, AirVent, Shirt, Camera, Mountain, Home, Clock, CheckCircle, Key, CreditCard, X, ExternalLink, ChevronLeft, ChevronRight,
   Building2, Flame, Cigarette as CigaretteIcon, Info, MapPin
 } from 'lucide-react';
 
@@ -63,7 +62,6 @@ export default function PropertyPage() {
   const slug = params.slug as string;
   const { properties, loading } = useProperties();
   const property = properties.find(p => p.slug === slug);
-  const [reviewFilter, setReviewFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', content: '' });
   const [showReviewsModal, setShowReviewsModal] = useState(false);
@@ -89,8 +87,7 @@ export default function PropertyPage() {
 
   // Content truncation constants - these could be configured from backend
   const DESCRIPTION_PREVIEW_LENGTH = CONTENT_CONFIG.GENERAL_LIMITS.PREVIEW_LENGTH;
-  const REVIEW_PREVIEW_LENGTH = CONTENT_CONFIG.REVIEW_LIMITS.PREVIEW_LENGTH;
-  
+
   // Backend-configurable description limits (loaded from constants/CMS)
   // In a real application, these could be loaded from your CMS or API:
   // const contentLimits = await getContentLimitsFromCMS(property.type);
@@ -140,7 +137,7 @@ export default function PropertyPage() {
     });
 
     // Create pricing breakdown text
-    let pricingDetails = `Price: ${pricing.formattedTotalPrice} total (${pricing.formattedAvgPrice} avg/night)`;
+    const pricingDetails = `Price: ${pricing.formattedTotalPrice} total (${pricing.formattedAvgPrice} avg/night)`;
 
     // Create WhatsApp message
     const message = `Hi! I'm interested in booking "${property?.title}" for the following dates:
@@ -167,15 +164,6 @@ Please let me know the availability and confirm the total cost for these dates. 
 
   const clearDates = () => {
     setCheckInDate('');
-    setCheckOutDate('');
-  };
-
-  // Individual date clearing functions
-  const clearCheckInDate = () => {
-    setCheckInDate('');
-  };
-
-  const clearCheckOutDate = () => {
     setCheckOutDate('');
   };
 
@@ -359,32 +347,6 @@ Please let me know the availability and confirm the total cost for these dates. 
     return getTotalReviewCount(property?.unifiedReviews || []);
   };
 
-  // Helper function to format relative dates
-  const formatRelativeDate = (dateString: string) => {
-    if (dateString === 'Recent') return '3 days ago';
-    
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInMs = now.getTime() - date.getTime();
-      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-      const diffInWeeks = Math.floor(diffInDays / 7);
-      const diffInMonths = Math.floor(diffInDays / 30);
-      const diffInYears = Math.floor(diffInDays / 365);
-
-      if (diffInDays < 7) {
-        return diffInDays <= 1 ? '1 day ago' : `${diffInDays} days ago`;
-      } else if (diffInWeeks < 4) {
-        return diffInWeeks === 1 ? '1 week ago' : `${diffInWeeks} weeks ago`;
-      } else if (diffInMonths < 12) {
-        return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      } else {
-        return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      }
-    } catch {
-      return 'Recently';
-    }
-  };
 
   // Helper function to get platform URLs
   const getPlatformUrl = (platform: string) => {
@@ -396,109 +358,6 @@ Please let me know the availability and confirm the total cost for these dates. 
     };
     return urls[platform as keyof typeof urls] || '#';
   };
-
-  // Calculate dynamic rating categories based on review data
-  const getRatingCategories = () => {
-    const defaultCategories = [
-      { category: 'Cleanliness', rating: 4.9 },
-      { category: 'Accuracy', rating: 4.8 },
-      { category: 'Check-in', rating: 4.9 },
-      { category: 'Communication', rating: 4.9 },
-      { category: 'Location', rating: 4.7 },
-      { category: 'Value', rating: 4.8 }
-    ];
-
-    // If we have unified reviews, we could calculate category-specific ratings
-    // For now, we'll use the overall rating with some variation
-    if (property?.unifiedReviews && property.unifiedReviews.length > 0) {
-      const overallRating = getOverallRating();
-      const seed = property.id ? property.id.charCodeAt(0) : 42;
-      
-      return defaultCategories.map((cat, index) => ({
-        ...cat,
-        rating: Math.min(5, Math.max(1, overallRating + (((seed + index * 3) % 40) - 20) / 100)) // Deterministic variation
-      }));
-    }
-
-    return defaultCategories;
-  };
-
-  // Generate review trends based on actual review data
-  const getReviewTrends = () => {
-    const defaultTrends = [
-      { month: 'Jan', count: 8, rating: 4.9 },
-      { month: 'Feb', count: 12, rating: 4.8 },
-      { month: 'Mar', count: 15, rating: 4.9 },
-      { month: 'Apr', count: 11, rating: 5.0 },
-      { month: 'May', count: 9, rating: 4.8 },
-      { month: 'Jun', count: 14, rating: 4.9 }
-    ];
-
-    // If we have review data, distribute it across months
-    if (property?.unifiedReviews && property.unifiedReviews.length > 0) {
-      const totalReviews = getPropertyReviewCount();
-      const avgPerMonth = Math.ceil(totalReviews / 6);
-      const overallRating = getOverallRating();
-
-      // Use property ID for deterministic "randomness" to avoid hydration issues
-      const seed = property.id ? property.id.charCodeAt(0) + property.id.charCodeAt(property.id.length - 1) : 42;
-
-      return defaultTrends.map((trend, index) => ({
-        ...trend,
-        count: Math.max(1, avgPerMonth + Math.floor(((seed + index) % 10) - 5)), // Deterministic variation
-        rating: Math.min(5, Math.max(1, overallRating + (((seed + index * 2) % 40) - 20) / 100)) // Deterministic variation
-      }));
-    }
-
-    return defaultTrends;
-  };
-
-  const getFilteredReviews = () => {
-    let filtered = allReviews;
-    
-    switch (reviewFilter) {
-      case 'recent':
-        // Show reviews from last 3 months
-        filtered = allReviews.filter(review => {
-          if (review.date === 'Recent') return true; // Include fallback reviews
-          try {
-            const reviewDate = new Date(review.date);
-            const threeMonthsAgo = new Date();
-            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-            return reviewDate >= threeMonthsAgo;
-          } catch {
-            return true; // Include if date parsing fails
-          }
-        });
-        break;
-      case 'families':
-        filtered = allReviews.filter(review => 
-          review.category === 'families' || 
-          review.stayType?.toLowerCase().includes('family') ||
-          review.comment?.toLowerCase().includes('family')
-        );
-        break;
-      case 'business':
-        filtered = allReviews.filter(review => 
-          review.category === 'business' || 
-          review.stayType?.toLowerCase().includes('business') ||
-          review.comment?.toLowerCase().includes('business')
-        );
-        break;
-      case '5stars':
-        filtered = allReviews.filter(review => review.rating === 5);
-        break;
-      case 'verified':
-        filtered = allReviews.filter(review => review.verified === true);
-        break;
-      default:
-        filtered = allReviews;
-    }
-    
-    return filtered.slice(0, 8);
-  };
-
-  const filteredReviews = getFilteredReviews();
 
   // Helper function to get unique prices from date range with grouping
   const getUniquePrices = () => {
@@ -970,7 +829,7 @@ Please let me know the availability and confirm the total cost for these dates. 
               <div className="mt-8">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Breakdown</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {pricingInfo.breakdown.map((day, index) => (
+                  {pricingInfo.breakdown.map((day) => (
                     <div 
                       key={day.date} 
                       className="flex justify-between items-center p-3 rounded-lg border bg-gray-50 border-gray-200"

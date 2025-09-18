@@ -209,9 +209,10 @@ export async function POST(request: NextRequest) {
         { error: 'A user with this email already exists in authentication' },
         { status: 400 }
       );
-    } catch (authError: any) {
+    } catch (authError: unknown) {
       // If user doesn't exist in auth, this is good - continue
-      if (authError.code !== 'auth/user-not-found') {
+      const authErr = authError as { code?: string };
+      if (authErr.code !== 'auth/user-not-found') {
         console.error('Error checking user existence in auth:', authError);
         return NextResponse.json(
           { error: 'Failed to verify user existence' },
@@ -265,8 +266,9 @@ export async function POST(request: NextRequest) {
         message: 'User created successfully in both authentication and database'
       }, { status: 201 });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error during user creation:', error);
+      const err = error as { code?: string; message?: string };
       
       // Rollback: If Firestore creation failed but Auth succeeded, delete from Auth
       if (authUid && !firestoreSuccess) {
@@ -279,17 +281,17 @@ export async function POST(request: NextRequest) {
       }
 
       // Provide user-friendly error messages
-      if (error.code === 'auth/email-already-exists') {
+      if (err.code === 'auth/email-already-exists') {
         return NextResponse.json(
           { error: 'A user with this email already exists' },
           { status: 400 }
         );
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (err.code === 'auth/invalid-email') {
         return NextResponse.json(
           { error: 'Please provide a valid email address' },
           { status: 400 }
         );
-      } else if (error.code === 'auth/weak-password') {
+      } else if (err.code === 'auth/weak-password') {
         return NextResponse.json(
           { error: 'Password is too weak. Please choose a stronger password' },
           { status: 400 }

@@ -75,7 +75,7 @@ function validateImage(file: File): { isValid: boolean; error?: string } {
 // POST - Upload profile image for a user
 export async function POST(
   request: NextRequest,
-  { params }: { params: { uid: string } }
+  { params }: { params: Promise<{ uid: string }> }
 ) {
   try {
     const verification = await verifyAdminAccess(request);
@@ -86,7 +86,7 @@ export async function POST(
       );
     }
 
-    const { uid } = params;
+    const { uid } = await params;
     if (!uid) {
       return NextResponse.json(
         { error: 'User ID is required' },
@@ -194,7 +194,7 @@ export async function POST(
 // DELETE - Remove profile image for a user
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { uid: string } }
+  { params }: { params: Promise<{ uid: string }> }
 ) {
   try {
     const verification = await verifyAdminAccess(request);
@@ -205,7 +205,7 @@ export async function DELETE(
       );
     }
 
-    const { uid } = params;
+    const { uid } = await params;
     if (!uid) {
       return NextResponse.json(
         { error: 'User ID is required' },

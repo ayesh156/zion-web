@@ -71,9 +71,10 @@ export async function PUT(
     try {
       currentAuthUser = await auth.getUser(uid);
       authUserExists = true;
-    } catch (authError: any) {
-      if (authError.code !== 'auth/user-not-found') {
-        console.error('Error checking auth user:', authError);
+    } catch (authError: unknown) {
+      const err = authError as { code?: string };
+      if (err.code !== 'auth/user-not-found') {
+        console.error('Error checking auth user:', err);
         return NextResponse.json(
           { error: 'Failed to verify user authentication status' },
           { status: 500 }
@@ -106,7 +107,7 @@ export async function PUT(
     // Update Firebase Auth if user exists there and relevant fields changed
     if (authUserExists && currentAuthUser) {
       try {
-        const authUpdateData: any = {};
+        const authUpdateData: Record<string, string | boolean> = {};
         
         // Update email if changed
         if (email !== undefined && email !== currentAuthUser.email) {
@@ -143,21 +144,22 @@ export async function PUT(
           console.log('Successfully updated Firebase Auth for user:', uid);
         }
         
-      } catch (authError: any) {
-        console.error('Error updating Firebase Auth:', authError);
+      } catch (authError: unknown) {
+        const err = authError as { code?: string };
+        console.error('Error updating Firebase Auth:', err);
         
         // Provide specific error messages for auth failures
-        if (authError.code === 'auth/email-already-exists') {
+        if (err.code === 'auth/email-already-exists') {
           return NextResponse.json(
             { error: 'Another user already exists with this email address' },
             { status: 400 }
           );
-        } else if (authError.code === 'auth/invalid-email') {
+        } else if (err.code === 'auth/invalid-email') {
           return NextResponse.json(
             { error: 'Please provide a valid email address' },
             { status: 400 }
           );
-        } else if (authError.code === 'auth/weak-password') {
+        } else if (err.code === 'auth/weak-password') {
           return NextResponse.json(
             { error: 'Password is too weak. Please choose a stronger password' },
             { status: 400 }
@@ -249,14 +251,15 @@ export async function DELETE(
         await auth.deleteUser(uid);
         authDeleteSuccess = true;
         console.log('Successfully deleted user from Firebase Auth:', uid);
-      } catch (authError: any) {
-        if (authError.code === 'auth/user-not-found') {
+      } catch (authError: unknown) {
+        const err = authError as { code?: string };
+        if (err.code === 'auth/user-not-found') {
           // User doesn't exist in Auth, that's okay - continue with Firestore deletion
           console.warn(`User ${uid} not found in Firebase Auth, continuing with Firestore deletion`);
           authDeleteSuccess = true; // Consider this a success since user is already gone
         } else {
-          console.error('Error deleting from Firebase Auth:', authError);
-          throw authError; // Re-throw other auth errors
+          console.error('Error deleting from Firebase Auth:', err);
+          throw err; // Re-throw other auth errors
         }
       }
 
@@ -270,7 +273,7 @@ export async function DELETE(
         message: 'User deleted successfully from both authentication and database'
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error during user deletion:', error);
 
       // Rollback logic: If Auth deletion succeeded but Firestore failed, 

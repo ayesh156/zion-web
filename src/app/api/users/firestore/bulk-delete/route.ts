@@ -112,13 +112,14 @@ export async function POST(request: NextRequest) {
         try {
           await auth.deleteUser(uid);
           authDeleteSuccess = true;
-        } catch (authError: any) {
-          if (authError.code === 'auth/user-not-found') {
+        } catch (authError: unknown) {
+          const authErr = authError as { code?: string; message?: string };
+          if (authErr.code === 'auth/user-not-found') {
             // User doesn't exist in Auth, that's okay
             authDeleteSuccess = true; // Consider this a success
           } else {
             console.error(`Error deleting user ${uid} from Auth:`, authError);
-            error = `Auth deletion failed: ${authError.message}`;
+            error = `Auth deletion failed: ${authErr.message || 'Unknown error'}`;
           }
         }
 
@@ -126,13 +127,12 @@ export async function POST(request: NextRequest) {
         try {
           await db.collection('users').doc(uid).delete();
           firestoreDeleteSuccess = true;
-        } catch (firestoreError: any) {
+        } catch (firestoreError: unknown) {
           console.error(`Error deleting user ${uid} from Firestore:`, firestoreError);
-          error = error ? `${error}; Firestore deletion failed: ${firestoreError.message}` 
-                       : `Firestore deletion failed: ${firestoreError.message}`;
-        }
-
-        // Determine overall success
+          const firestoreErr = firestoreError as { message?: string };
+          error = error ? `${error}; Firestore deletion failed: ${firestoreErr.message || 'Unknown error'}`
+                       : `Firestore deletion failed: ${firestoreErr.message || 'Unknown error'}`;
+        }        // Determine overall success
         const success = authDeleteSuccess && firestoreDeleteSuccess;
 
         return { 
@@ -143,14 +143,15 @@ export async function POST(request: NextRequest) {
           error: success ? undefined : error
         };
 
-      } catch (unexpectedError: any) {
+      } catch (unexpectedError: unknown) {
+        const err = unexpectedError as { message?: string };
         console.error(`Unexpected error deleting user ${uid}:`, unexpectedError);
         return { 
           uid, 
           success: false, 
           authDeleteSuccess,
           firestoreDeleteSuccess,
-          error: unexpectedError.message || 'Unexpected error occurred'
+          error: err.message || 'Unexpected error occurred'
         };
       }
     });
