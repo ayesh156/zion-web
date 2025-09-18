@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getCurrentPrice } from '../../lib/pricingUtils';
@@ -55,9 +54,6 @@ const PropertyTable = ({ properties, onEdit, onDelete, onBookingManage, onPricin
     }
   };
 
-  const handleDelete = (id: string) => {
-    onDelete(id);
-  };
 
   if (properties.length === 0) {
     return (

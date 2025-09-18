@@ -1,5 +1,14 @@
 'use client';
 
+interface UserStatistics {
+  totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  pendingUsers: number;
+  adminUsers: number;
+  regularUsers: number;
+}
+
 // Define interfaces for timestamp handling
 interface FirestoreTimestamp {
   seconds: number;
@@ -130,7 +139,7 @@ export const firestoreUserService = {
       const data = await response.json();
       
       // Convert date strings back to Date objects
-      const users = data.users.map((user: any) => this.convertTimestamps(user));
+      const users = data.users.map((user: unknown) => this.convertTimestamps(user as Record<string, unknown>));
 
       // Return both simple array and full result for different use cases
       return { 
@@ -417,13 +426,21 @@ export const firestoreUserService = {
   },
 
   // Helper function to convert timestamps
-  convertTimestamps(user: any): FirestoreUser {
+  convertTimestamps(user: Record<string, unknown>): FirestoreUser {
+    const convertDate = (dateValue: unknown): Date => {
+      if (!dateValue) return new Date();
+      if (typeof dateValue === 'string') return new Date(dateValue);
+      if (typeof dateValue === 'number') return new Date(dateValue);
+      if (dateValue instanceof Date) return dateValue;
+      return new Date();
+    };
+
     return {
       ...user,
-      createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
-      lastLogin: user.lastLogin ? new Date(user.lastLogin) : undefined,
-      updatedAt: user.updatedAt ? new Date(user.updatedAt) : new Date(),
-    };
+      createdAt: convertDate(user.createdAt),
+      lastLogin: user.lastLogin ? convertDate(user.lastLogin) : undefined,
+      updatedAt: convertDate(user.updatedAt),
+    } as FirestoreUser;
   },
 
   // Client-side validation helper
@@ -454,7 +471,7 @@ export const firestoreUserService = {
   },
 
   // Get user statistics
-  async getUserStatistics(): Promise<{ stats?: any; error?: string }> {
+  async getUserStatistics(): Promise<{ stats?: UserStatistics; error?: string }> {
     try {
       const response = await fetch('/api/users/firestore/statistics', {
         method: 'GET',

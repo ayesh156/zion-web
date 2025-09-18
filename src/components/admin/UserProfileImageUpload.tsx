@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { 
   Upload, 
   Camera, 
@@ -9,10 +10,6 @@ import {
   Loader, 
   Check, 
   AlertTriangle,
-  Image as ImageIcon,
-  Trash2,
-  Crop,
-  RotateCw
 } from 'lucide-react';
 import { 
   compressImage, 
@@ -284,10 +281,11 @@ export default function UserProfileImageUpload({
         >
           {previewUrl ? (
             <>
-              <img
+              <Image
                 src={previewUrl}
                 alt="Profile preview"
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
               {!disabled && (
                 <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">

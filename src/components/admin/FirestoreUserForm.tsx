@@ -16,7 +16,7 @@ const FirestoreUserForm = ({ user, onSave, onCancel, isLoading = false }: Firest
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    role: 'user' as 'user' | 'admin',
+    role: 'user' as 'user' | 'admin' | 'manager',
     isAdmin: false
   });
 
@@ -83,7 +83,7 @@ const FirestoreUserForm = ({ user, onSave, onCancel, isLoading = false }: Firest
     }
   };
 
-  const handleRoleChange = (role: 'user' | 'admin') => {
+  const handleRoleChange = (role: 'user' | 'admin' | 'manager') => {
     setFormData(prev => ({
       ...prev,
       role,
@@ -195,13 +195,19 @@ const FirestoreUserForm = ({ user, onSave, onCancel, isLoading = false }: Firest
               <label className="block text-sm font-medium text-neutral-700 mb-3">
                 User Role *
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
                   {
                     value: 'user',
                     label: 'Standard User',
                     description: 'Basic user with limited access',
                     color: 'bg-green-50 border-green-200 text-green-800'
+                  },
+                  {
+                    value: 'manager',
+                    label: 'Manager',
+                    description: 'Intermediate access for team management',
+                    color: 'bg-blue-50 border-blue-200 text-blue-800'
                   },
                   {
                     value: 'admin',
@@ -224,7 +230,7 @@ const FirestoreUserForm = ({ user, onSave, onCancel, isLoading = false }: Firest
                       name="role"
                       value={role.value}
                       checked={formData.role === role.value}
-                      onChange={(e) => handleRoleChange(e.target.value as 'user' | 'admin')}
+                      onChange={(e) => handleRoleChange(e.target.value as 'user' | 'admin' | 'manager')}
                       className="sr-only"
                     />
                     <div className="flex items-center space-x-3">

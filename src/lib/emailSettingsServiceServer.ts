@@ -19,8 +19,6 @@ const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   lastUpdated: new Date(),
 };
 
-// Firestore document path
-const EMAIL_SETTINGS_DOC = 'settings/emailNotifications';
 
 /**
  * Get current email notification recipients from Firebase (Server-side)
@@ -28,12 +26,7 @@ const EMAIL_SETTINGS_DOC = 'settings/emailNotifications';
 export async function getEmailNotificationRecipientsServer(): Promise<string[]> {
   try {
     // Test Firebase Admin initialization first
-    try {
-      const db = getAdminFirestore();
-    } catch (initError) {
-      console.error('❌ Firebase Admin initialization failed:', initError);
-      throw new Error(`Firebase initialization failed: ${initError instanceof Error ? initError.message : String(initError)}`);
-    }
+   
     
     const db = getAdminFirestore();
     const docRef = db.collection('settings').doc('emailNotifications');

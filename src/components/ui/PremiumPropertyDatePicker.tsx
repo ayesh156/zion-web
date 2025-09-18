@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -44,7 +44,6 @@ const PremiumPropertyDatePicker = ({
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(value ? new Date(value) : new Date());
   const [triggerElement, setTriggerElement] = useState<HTMLElement | null>(null);
-  const [calendarElement, setCalendarElement] = useState<HTMLElement | null>(null);
   const [calendarPosition, setCalendarPosition] = useState({ top: 0, left: 0, positioning: 'left' });
   const [mounted, setMounted] = useState(false);
 
@@ -137,7 +136,8 @@ const PremiumPropertyDatePicker = ({
         }
       };
     }
-  }, [showCalendar, triggerElement, cardContainerRef]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCalendar, triggerElement, cardContainerRef]); // calculateCalendarPosition is stable
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return placeholder;
@@ -149,7 +149,7 @@ const PremiumPropertyDatePicker = ({
     });
   };
 
-  const calculateCalendarPosition = () => {
+  const calculateCalendarPosition = useCallback(() => {
     if (!triggerElement) return;
     
     const triggerRect = triggerElement.getBoundingClientRect();
@@ -194,7 +194,7 @@ const PremiumPropertyDatePicker = ({
     );
     
     setCalendarPosition({ top, left, positioning });
-  };
+  }, [triggerElement]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -442,7 +442,6 @@ const PremiumPropertyDatePicker = ({
               
               {/* Calendar Modal Container - Fixed Position Outside Card */}
               <motion.div
-                ref={(el) => setCalendarElement(el)}
                 initial={{ opacity: 0, x: calendarPosition.positioning === 'left' ? -8 : 8, scale: 0.96 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: calendarPosition.positioning === 'left' ? -8 : 8, scale: 0.96 }}

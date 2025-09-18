@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { 
   Users, 
   Edit3, 
@@ -14,7 +15,6 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
-  AlertTriangle
 } from 'lucide-react';
 import { FirestoreUser } from '@/lib/firestoreUserService';
 
@@ -68,13 +68,16 @@ export default function UserTable({
 
   // Sort users
   // Helper function to convert various date types to Date
-  const convertToDate = (dateValue: any): Date => {
+  const convertToDate = (dateValue: unknown): Date => {
     if (!dateValue) return new Date(0);
     if (dateValue instanceof Date) return dateValue;
     if (typeof dateValue === 'string') return new Date(dateValue);
-    if (dateValue.seconds) return new Date(dateValue.seconds * 1000); // Firestore Timestamp
-    if (dateValue.toDate) return dateValue.toDate(); // Firestore Timestamp
-    return new Date(dateValue);
+    if (typeof dateValue === 'object' && dateValue !== null) {
+      const obj = dateValue as { seconds?: number; toDate?: () => Date };
+      if (obj.seconds) return new Date(obj.seconds * 1000); // Firestore Timestamp
+      if (obj.toDate) return obj.toDate(); // Firestore Timestamp
+    }
+    return new Date(dateValue as string | number);
   };
 
   const sortedUsers = useMemo(() => {
@@ -413,10 +416,12 @@ export default function UserTable({
                         <div className="flex items-center space-x-3">
                           <div className="relative">
                             {user.profileImage ? (
-                              <img
+                              <Image
                                 src={user.profileImage}
                                 alt={user.name || 'User'}
-                                className="w-12 h-12 rounded-xl object-cover shadow-sm"
+                                width={48}
+                                height={48}
+                                className="rounded-xl object-cover shadow-sm"
                               />
                             ) : (
                               <div className="w-12 h-12 bg-gradient-to-br from-primary-100 to-secondary-100 rounded-xl flex items-center justify-center shadow-sm">
